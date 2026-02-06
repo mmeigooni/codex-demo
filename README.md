@@ -35,8 +35,8 @@ cp .env.example .env.local
 
 4. Run SQL migrations in Supabase SQL editor in order:
 
-- `/Users/frequency/Desktop/dev/takehome-spec/supabase/migrations/001_initial_schema.sql`
-- `/Users/frequency/Desktop/dev/takehome-spec/supabase/migrations/002_seed_data.sql`
+- `/Users/frequency/Desktop/dev/codex-demo/supabase/migrations/001_initial_schema.sql`
+- `/Users/frequency/Desktop/dev/codex-demo/supabase/migrations/002_seed_data.sql`
 
 5. Start app:
 
@@ -57,8 +57,8 @@ npm run build
 ## Required Environment Variables
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
 - `OPENAI_API_KEY`
 - `DEMO_REPO` (optional, defaults to `mo-demo/ecommerce-checkout`)
 
@@ -66,5 +66,5 @@ npm run build
 
 - All database reads/writes happen through server API routes.
 - Merge recommendation is computed server-side from finding severities.
-- Fallback fixtures live in `/Users/frequency/Desktop/dev/takehome-spec/fixtures`.
+- Fallback fixtures live in `/Users/frequency/Desktop/dev/codex-demo/fixtures`.
 - Prompt template version is persisted on each run as `1.0`.
