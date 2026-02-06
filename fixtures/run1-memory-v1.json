@@ -1,0 +1,39 @@
+{
+  "summary": "Found 3 issues in express checkout endpoint.",
+  "findings": [
+    {
+      "severity": "critical",
+      "title": "Missing idempotency key on payment charge",
+      "file": "src/payments/charge.ts",
+      "line": 42,
+      "description": "Charge creation does not set an idempotency key, risking duplicate charges on retries.",
+      "memory_reference": "All payment handlers must include an idempotency key",
+      "suggested_fix": "Pass an idempotency key derived from request id into charge creation."
+    },
+    {
+      "severity": "warning",
+      "title": "Retry loop lacks exponential backoff",
+      "file": "src/checkout/checkout-service.ts",
+      "line": 77,
+      "description": "Retry logic uses immediate retries without backoff and jitter.",
+      "memory_reference": "Retry logic must use exponential backoff with jitter",
+      "suggested_fix": "Use an exponential delay with random jitter before each retry."
+    },
+    {
+      "severity": "warning",
+      "title": "Error message is not actionable",
+      "file": "src/checkout/endpoint.ts",
+      "line": 101,
+      "description": "The thrown error message 'failed' has no context for debugging or support.",
+      "memory_reference": "Error messages must be actionable and include context",
+      "suggested_fix": "Include payment intent id and failure reason in the message."
+    }
+  ],
+  "memory_suggestions": [
+    {
+      "category": "Data Safety",
+      "content": "- NEVER log request bodies or raw user input in payment handlers\n- PII (card numbers, SSN, email) must be redacted before any logging",
+      "rationale": "The current memory does not enforce data-handling rules for logging sensitive request payloads."
+    }
+  ]
+}
