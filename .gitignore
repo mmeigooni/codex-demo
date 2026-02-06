@@ -6,3 +6,5 @@ coverage
 npm-debug.log*
 .DS_Store
 *.tsbuildinfo
+
+context-docs/
