@@ -5,10 +5,11 @@ import { cn } from "@/lib/utils";
 type Variant = "default" | "secondary" | "ghost" | "danger";
 
 const variantClasses: Record<Variant, string> = {
-  default: "bg-brand-600 text-white hover:bg-brand-700",
-  secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-  ghost: "bg-transparent text-slate-700 hover:bg-slate-100",
-  danger: "bg-red-600 text-white hover:bg-red-700"
+  default: "bg-[var(--accent)] text-white hover:brightness-95 focus-visible:ring-[var(--accent-soft)]",
+  secondary:
+    "bg-[var(--surface-muted)] text-[var(--text-strong)] border border-[var(--border-subtle)] hover:bg-[#f2f4f7] focus-visible:ring-[var(--accent-soft)]",
+  ghost: "bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-muted)] focus-visible:ring-[var(--accent-soft)]",
+  danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-100"
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -23,7 +24,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-[var(--radius-input)] px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50",
         variantClasses[variant],
         className
       )}
