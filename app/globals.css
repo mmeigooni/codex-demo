@@ -1,9 +1,37 @@
+@import "react-diff-view/style/index.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: light;
+  --surface-page: #f6f7f9;
+  --surface-primary: #ffffff;
+  --surface-muted: #f9fafb;
+  --border-subtle: #e5e7eb;
+  --border-strong: #cbd5e1;
+  --text-strong: #0f172a;
+  --text-muted: #334155;
+  --text-dim: #64748b;
+  --accent: #0f6fff;
+  --accent-soft: #eaf2ff;
+  --radius-card: 12px;
+  --radius-input: 10px;
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 8%);
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --diff-background-color: var(--surface-primary);
+  --diff-text-color: var(--text-strong);
+  --diff-selection-background-color: #dbeafe;
+  --diff-code-insert-background-color: #ecfdf3;
+  --diff-code-delete-background-color: #fff1f2;
+  --diff-gutter-insert-background-color: #dcfce7;
+  --diff-gutter-delete-background-color: #ffe4e6;
 }
 
 * {
@@ -14,9 +42,20 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top right, #eef4ff 0%, var(--surface-page) 35%, #f4f7fb 100%);
+  color: var(--text-strong);
+  font-family: "IBM Plex Sans", "Geist", "Segoe UI", sans-serif;
 }
 
 a {
   color: inherit;
+}
+
+.diff {
+  --diff-border-color: var(--border-subtle);
+}
+
+.diff-code {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
 }

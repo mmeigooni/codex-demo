@@ -77,17 +77,32 @@ export interface PreparedDiff {
   includedFiles: number;
 }
 
-export type PanelState =
-  | { view: "memory" }
-  | { view: "assembling"; checklist: string[] }
-  | { view: "results"; runId: string }
-  | { view: "compare"; runIds: [string, string] }
-  | { view: "error"; message: string; retryable: boolean };
+export type RunPhase = "assembling" | "evaluating" | "formatting";
+
+export type WorkflowStatus =
+  | "signed_out"
+  | "repo_loading"
+  | "pr_loading"
+  | "ready"
+  | "running"
+  | "done"
+  | "error";
+
+export interface WorkflowUiState {
+  status: WorkflowStatus;
+  runPhase?: RunPhase;
+  message?: string;
+  retryable?: boolean;
+}
+
+export type RightPanelTab = "findings" | "memory" | "run_details";
 
 export interface GitHubPullRequest {
   number: number;
   title: string;
   html_url: string;
+  updated_at: string;
+  body?: string | null;
   user: {
     login: string;
     avatar_url: string;
@@ -96,6 +111,18 @@ export interface GitHubPullRequest {
   additions: number;
   deletions: number;
   changed_files: number;
+}
+
+export interface DiffFileSummary {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface DiffLineAnchor {
+  filePath: string;
+  line: number;
+  anchorId: string;
 }
 
 export interface RunRequestBody {

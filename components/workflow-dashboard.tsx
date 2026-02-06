@@ -1,19 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { findNewFindings } from "@/lib/compare";
+import { DiffPanel } from "@/components/workflow/diff-panel";
+import { MorePacksDrawer } from "@/components/workflow/more-packs-drawer";
+import { PrContextPanel } from "@/components/workflow/pr-context-panel";
+import { ResultsPanel } from "@/components/workflow/results-panel";
+import { TopBar } from "@/components/workflow/top-bar";
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
+import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
+import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  canRunAnalysis,
+  initialWorkflowUiState,
+  reduceWorkflowUiState
+} from "@/lib/workflow-ui-state";
 import type {
+  DiffLineAnchor,
   Finding,
+  GitHubPullRequest,
   MemorySuggestion,
   MemoryVersion,
-  PanelState,
+  RightPanelTab,
   RunRecord,
   RunResult,
   WorkflowPack
@@ -30,42 +40,6 @@ type SessionLike = {
   };
   provider_token?: string;
 };
-
-type PanelAction =
-  | { type: "SHOW_MEMORY" }
-  | { type: "SHOW_ASSEMBLING"; checklist: string[] }
-  | { type: "SHOW_RESULTS"; runId: string }
-  | { type: "SHOW_COMPARE"; runIds: [string, string] }
-  | { type: "SHOW_ERROR"; message: string; retryable: boolean };
-
-function panelReducer(state: PanelState, action: PanelAction): PanelState {
-  switch (action.type) {
-    case "SHOW_MEMORY":
-      return { view: "memory" };
-    case "SHOW_ASSEMBLING":
-      return { view: "assembling", checklist: action.checklist };
-    case "SHOW_RESULTS":
-      return { view: "results", runId: action.runId };
-    case "SHOW_COMPARE":
-      return { view: "compare", runIds: action.runIds };
-    case "SHOW_ERROR":
-      return { view: "error", message: action.message, retryable: action.retryable };
-    default:
-      return state;
-  }
-}
-
-function severityVariant(severity: Finding["severity"]): "danger" | "warning" | "info" {
-  if (severity === "critical") return "danger";
-  if (severity === "warning") return "warning";
-  return "info";
-}
-
-function mergeVariant(merge: RunRecord["merge_recommendation"]): "success" | "warning" | "danger" {
-  if (merge === "pass") return "success";
-  if (merge === "warnings") return "warning";
-  return "danger";
-}
 
 function memoryFromSuggestion(memory: MemoryVersion, suggestion: MemorySuggestion): { newContent: string; section: string } {
   const section = suggestion.category;
@@ -86,7 +60,9 @@ function memoryFromSuggestion(memory: MemoryVersion, suggestion: MemorySuggestio
 export function WorkflowDashboard() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [panelState, dispatch] = useReducer(panelReducer, { view: "memory" } as PanelState);
+  const [uiState, dispatchUiState] = useReducer(reduceWorkflowUiState, initialWorkflowUiState);
+  const [activeTab, setActiveTab] = useState<RightPanelTab>("findings");
+
   const [session, setSession] = useState<SessionLike | null>(null);
 
   const [repo, setRepo] = useState(DEFAULT_DEMO_REPO);
@@ -94,11 +70,12 @@ export function WorkflowDashboard() {
   const [memoryVersions, setMemoryVersions] = useState<MemoryVersion[]>([]);
   const [currentMemoryId, setCurrentMemoryId] = useState<string | null>(null);
 
-  const [pullRequests, setPullRequests] = useState<Array<Record<string, unknown>>>([]);
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
   const [selectedPrTitle, setSelectedPrTitle] = useState("");
   const [selectedPrUrl, setSelectedPrUrl] = useState("");
   const [prDiff, setPrDiff] = useState("");
+  const [diffJumpAnchor, setDiffJumpAnchor] = useState<DiffLineAnchor | null>(null);
 
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
@@ -106,8 +83,12 @@ export function WorkflowDashboard() {
 
   const [loadingBootstrap, setLoadingBootstrap] = useState(true);
   const [loadingPrs, setLoadingPrs] = useState(false);
+  const [loadingDiff, setLoadingDiff] = useState(false);
   const [running, setRunning] = useState(false);
   const [promoting, setPromoting] = useState(false);
+
+  const runAbortRef = useRef<AbortController | null>(null);
+  const runPhaseTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   const currentMemory = useMemo(
     () => memoryVersions.find((memory) => memory.id === currentMemoryId) ?? memoryVersions.at(-1) ?? null,
@@ -121,6 +102,15 @@ export function WorkflowDashboard() {
     "Anonymous";
 
   const githubToken = session?.provider_token;
+  const repoMessage = repoValidationMessage(repo);
+
+  const canRun = canRunAnalysis(
+    uiState,
+    Boolean(pack && currentMemory && selectedPrUrl && prDiff && !loadingBootstrap && !loadingDiff)
+  );
+
+  const runLabel = running ? "Running..." : currentRun ? "Re-run" : "Run";
+  const runHelper = `Pack: ${pack?.name ?? "N/A"} · Memory v${currentMemory?.version ?? "-"}`;
 
   async function loadBootstrap() {
     setLoadingBootstrap(true);
@@ -141,10 +131,9 @@ export function WorkflowDashboard() {
       setCurrentMemoryId(data.memoryVersions.at(-1)?.id ?? null);
       setRuns(data.runs);
       setCurrentRun(data.runs.at(-1) ?? null);
-      dispatch({ type: "SHOW_MEMORY" });
     } catch (error) {
-      dispatch({
-        type: "SHOW_ERROR",
+      dispatchUiState({
+        type: "REPO_LOAD_ERROR",
         message: error instanceof Error ? error.message : "Unknown bootstrap error",
         retryable: true
       });
@@ -153,14 +142,16 @@ export function WorkflowDashboard() {
     }
   }
 
-  async function loadPullRequests() {
+  async function loadPullRequests(targetRepo: string) {
     if (!githubToken) {
       return;
     }
 
+    dispatchUiState({ type: "REPO_LOAD_START" });
     setLoadingPrs(true);
+
     try {
-      const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(repo)}`, {
+      const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(targetRepo)}`, {
         headers: {
           "x-github-token": githubToken
         }
@@ -171,13 +162,22 @@ export function WorkflowDashboard() {
       }
 
       const data = (await response.json()) as {
-        pullRequests: Array<Record<string, unknown>>;
+        pullRequests: GitHubPullRequest[];
       };
 
       setPullRequests(data.pullRequests);
+
+      if (selectedPrNumber && !data.pullRequests.some((pullRequest) => pullRequest.number === selectedPrNumber)) {
+        setSelectedPrNumber(null);
+        setSelectedPrTitle("");
+        setSelectedPrUrl("");
+        setPrDiff("");
+      }
+
+      dispatchUiState({ type: "REPO_LOAD_SUCCESS" });
     } catch (error) {
-      dispatch({
-        type: "SHOW_ERROR",
+      dispatchUiState({
+        type: "REPO_LOAD_ERROR",
         message: error instanceof Error ? error.message : "Unknown GitHub error",
         retryable: true
       });
@@ -191,47 +191,86 @@ export function WorkflowDashboard() {
       return;
     }
 
-    const response = await fetch(
-      `/api/github/diff?repo=${encodeURIComponent(repo)}&pullNumber=${pullNumber}`,
-      {
-        headers: {
-          "x-github-token": githubToken
-        }
-      }
-    );
+    setSelectedPrNumber(pullNumber);
+    setLoadingDiff(true);
+    dispatchUiState({ type: "PR_LOAD_START" });
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch pull request diff");
+    try {
+      const response = await fetch(
+        `/api/github/diff?repo=${encodeURIComponent(normalizeRepoInput(repo))}&pullNumber=${pullNumber}`,
+        {
+          headers: {
+            "x-github-token": githubToken
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch pull request diff");
+      }
+
+      const data = (await response.json()) as {
+        pullNumber: number;
+        title: string;
+        url: string;
+        diff: string;
+      };
+
+      setSelectedPrNumber(data.pullNumber);
+      setSelectedPrTitle(data.title);
+      setSelectedPrUrl(data.url);
+      setPrDiff(data.diff);
+      setDiffJumpAnchor(null);
+      setActiveTab("findings");
+      dispatchUiState({ type: "PR_LOAD_SUCCESS" });
+    } catch (error) {
+      dispatchUiState({
+        type: "PR_LOAD_ERROR",
+        message: error instanceof Error ? error.message : "Unknown pull request error",
+        retryable: true
+      });
+    } finally {
+      setLoadingDiff(false);
+    }
+  }
+
+  function clearRunTimers() {
+    for (const timer of runPhaseTimersRef.current) {
+      clearTimeout(timer);
     }
 
-    const data = (await response.json()) as {
-      pullNumber: number;
-      title: string;
-      url: string;
-      diff: string;
-    };
+    runPhaseTimersRef.current = [];
+  }
 
-    setSelectedPrNumber(data.pullNumber);
-    setSelectedPrTitle(data.title);
-    setSelectedPrUrl(data.url);
-    setPrDiff(data.diff);
+  function cancelRun() {
+    runAbortRef.current?.abort();
+    runAbortRef.current = null;
+    clearRunTimers();
+    setRunning(false);
+    dispatchUiState({ type: "RUN_CANCELLED" });
   }
 
   async function runAnalysis() {
-    if (!pack || !currentMemory || !selectedPrUrl || !prDiff) {
+    if (!pack || !currentMemory || !selectedPrUrl || !prDiff || running) {
       return;
     }
 
     setRunning(true);
-    setCurrentResult(null);
-    dispatch({
-      type: "SHOW_ASSEMBLING",
-      checklist: [
-        `Workflow Definition (${pack.name})`,
-        `Team Memory (v${currentMemory.version})`,
-        `PR Diff (${selectedPrTitle})`
-      ]
-    });
+    setActiveTab("findings");
+    dispatchUiState({ type: "RUN_START" });
+
+    const evaluatingTimer = setTimeout(() => {
+      dispatchUiState({ type: "RUN_PHASE", phase: "evaluating" });
+    }, 600);
+
+    const formattingTimer = setTimeout(() => {
+      dispatchUiState({ type: "RUN_PHASE", phase: "formatting" });
+    }, 1_600);
+
+    runPhaseTimersRef.current = [evaluatingTimer, formattingTimer];
+
+    const controller = new AbortController();
+    runAbortRef.current = controller;
 
     try {
       const response = await fetch("/api/runs", {
@@ -245,7 +284,8 @@ export function WorkflowDashboard() {
           prUrl: selectedPrUrl,
           prTitle: selectedPrTitle,
           prDiff
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -261,19 +301,25 @@ export function WorkflowDashboard() {
       setRuns((previous) => [...previous, data.run]);
       setCurrentRun(data.run);
       setCurrentResult(data.result);
-      dispatch({ type: "SHOW_RESULTS", runId: data.run.id });
+      dispatchUiState({ type: "RUN_SUCCESS" });
     } catch (error) {
-      dispatch({
-        type: "SHOW_ERROR",
-        message: error instanceof Error ? error.message : "Run failed",
-        retryable: true
-      });
+      if (error instanceof DOMException && error.name === "AbortError") {
+        dispatchUiState({ type: "RUN_CANCELLED" });
+      } else {
+        dispatchUiState({
+          type: "RUN_ERROR",
+          message: error instanceof Error ? error.message : "Run failed",
+          retryable: true
+        });
+      }
     } finally {
+      clearRunTimers();
+      runAbortRef.current = null;
       setRunning(false);
     }
   }
 
-  async function promoteSuggestion() {
+  async function proposeRule() {
     if (!pack || !currentMemory || !currentRun || !currentResult?.memory_suggestions?.[0]) {
       return;
     }
@@ -307,17 +353,17 @@ export function WorkflowDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to promote memory");
+        throw new Error("Failed to propose rule");
       }
 
       const payload = (await response.json()) as { memoryVersion: MemoryVersion };
       setMemoryVersions((previous) => [...previous, payload.memoryVersion]);
       setCurrentMemoryId(payload.memoryVersion.id);
-      dispatch({ type: "SHOW_MEMORY" });
+      setActiveTab("memory");
     } catch (error) {
-      dispatch({
-        type: "SHOW_ERROR",
-        message: error instanceof Error ? error.message : "Promotion failed",
+      dispatchUiState({
+        type: "RUN_ERROR",
+        message: error instanceof Error ? error.message : "Rule proposal failed",
         retryable: true
       });
     } finally {
@@ -325,13 +371,15 @@ export function WorkflowDashboard() {
     }
   }
 
-  function showCompare() {
-    if (runs.length < 2) {
+  function handleJumpToFinding(finding: Finding) {
+    const diffFiles = extractDiffFileSummaries(prDiff);
+    const anchor = mapFindingToDiffAnchor(finding, diffFiles);
+
+    if (!anchor) {
       return;
     }
 
-    const lastTwo = runs.slice(-2);
-    dispatch({ type: "SHOW_COMPARE", runIds: [lastTwo[0].id, lastTwo[1].id] });
+    setDiffJumpAnchor(anchor);
   }
 
   useEffect(() => {
@@ -345,7 +393,9 @@ export function WorkflowDashboard() {
 
     const initializeSession = async () => {
       const { data } = await supabase.auth.getSession();
-      setSession((data.session as SessionLike | null) ?? null);
+      const nextSession = (data.session as SessionLike | null) ?? null;
+      setSession(nextSession);
+      dispatchUiState({ type: "SESSION_CHANGED", signedIn: Boolean(nextSession) });
     };
 
     void initializeSession();
@@ -353,7 +403,9 @@ export function WorkflowDashboard() {
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession((nextSession as SessionLike | null) ?? null);
+      const typedSession = (nextSession as SessionLike | null) ?? null;
+      setSession(typedSession);
+      dispatchUiState({ type: "SESSION_CHANGED", signedIn: Boolean(typedSession) });
     });
 
     return () => {
@@ -361,306 +413,132 @@ export function WorkflowDashboard() {
     };
   }, [supabase]);
 
-  const runById = useMemo(() => new Map(runs.map((run) => [run.id, run])), [runs]);
+  useEffect(() => {
+    const normalizedRepo = normalizeRepoInput(repo);
+    if (!shouldAutoloadRepo(normalizedRepo, githubToken)) {
+      return;
+    }
 
-  const compareRuns =
-    panelState.view === "compare"
-      ? [runById.get(panelState.runIds[0]), runById.get(panelState.runIds[1])]
-      : [undefined, undefined];
+    const timer = setTimeout(() => {
+      void loadPullRequests(normalizedRepo);
+    }, REPO_AUTOLOAD_DEBOUNCE_MS);
 
-  const compareNewFindings =
-    compareRuns[0] && compareRuns[1]
-      ? findNewFindings(compareRuns[0].parsed_findings, compareRuns[1].parsed_findings)
-      : [];
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [repo, githubToken]);
+
+  useEffect(() => {
+    return () => {
+      clearRunTimers();
+      runAbortRef.current?.abort();
+    };
+  }, []);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 px-6 py-6">
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-4">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Workflow Packs</h1>
-            <p className="text-sm text-slate-600">Checkout Safety Review Demo</p>
-          </div>
+    <main className="min-h-screen px-4 py-4 md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
+        <TopBar
+          packName={pack?.name ?? "Workflow Pack"}
+          repo={normalizeRepoInput(repo)}
+          selectedPrLabel={selectedPrTitle || "No PR selected"}
+          runLabel={runLabel}
+          runHelper={runHelper}
+          runDisabled={!canRun}
+          session={session}
+          userName={userName}
+          onRun={() => {
+            void runAnalysis();
+          }}
+          onSignOut={async () => {
+            if (!supabase) return;
+            await supabase.auth.signOut();
+          }}
+          onSignIn={async () => {
+            if (!supabase) return;
+            await supabase.auth.signInWithOAuth({
+              provider: "github",
+              options: {
+                redirectTo: `${window.location.origin}/auth/callback`,
+                scopes: GITHUB_OAUTH_SCOPES
+              }
+            });
+          }}
+        />
 
-          <div className="flex items-center gap-2">
-            {session ? (
-              <>
-                {session.user.user_metadata?.avatar_url ? (
-                  <img
-                    src={session.user.user_metadata.avatar_url}
-                    alt="User avatar"
-                    className="h-8 w-8 rounded-full border border-slate-200"
-                  />
-                ) : null}
-                <span className="text-sm text-slate-700">{userName}</span>
-                <Button
-                  variant="secondary"
-                  onClick={async () => {
-                    if (!supabase) return;
-                    await supabase.auth.signOut();
-                  }}
-                >
-                  Sign out
-                </Button>
-              </>
-            ) : (
-              <Button
-                disabled={!supabase}
-                onClick={async () => {
-                  if (!supabase) return;
-                  await supabase.auth.signInWithOAuth({
-                    provider: "github",
-                    options: {
-                      redirectTo: `${window.location.origin}/auth/callback`,
-                      scopes: GITHUB_OAUTH_SCOPES
-                    }
-                  });
-                }}
-              >
-                {supabase ? "Sign in with GitHub" : "Supabase env missing"}
-              </Button>
-            )}
-          </div>
-        </header>
-
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card className="min-h-[620px]">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Card>
             <CardHeader>
               <CardTitle>Pull Request Context</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <label className="text-xs font-medium uppercase text-slate-500">Repository</label>
-              <div className="flex gap-2">
-                <input
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                  value={repo}
-                  onChange={(event) => setRepo(event.target.value)}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    void loadPullRequests();
-                  }}
-                  disabled={!githubToken || loadingPrs}
-                >
-                  {loadingPrs ? "Loading..." : "Load PRs"}
-                </Button>
-              </div>
-
-              <label className="text-xs font-medium uppercase text-slate-500">Open Pull Requests</label>
-              <select
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                value={selectedPrNumber ?? ""}
-                onChange={(event) => {
-                  const pullNumber = Number.parseInt(event.target.value, 10);
-                  if (!Number.isNaN(pullNumber)) {
-                    void selectPullRequest(pullNumber);
+            <CardContent className="space-y-4">
+              <PrContextPanel
+                repo={repo}
+                onRepoChange={setRepo}
+                repoValidationMessage={repoMessage}
+                pullRequests={pullRequests}
+                loadingPrs={loadingPrs}
+                loadingDiff={loadingDiff}
+                selectedPrNumber={selectedPrNumber}
+                selectedPrTitle={selectedPrTitle}
+                selectedPrUrl={selectedPrUrl}
+                onRefreshPullRequests={() => {
+                  const normalizedRepo = normalizeRepoInput(repo);
+                  if (!repoValidationMessage(normalizedRepo)) {
+                    void loadPullRequests(normalizedRepo);
                   }
                 }}
-                disabled={!pullRequests.length}
-              >
-                <option value="">Select a pull request</option>
-                {pullRequests.map((pr) => (
-                  <option key={String(pr.number)} value={String(pr.number)}>
-                    {String(pr.number)} - {String(pr.title)}
-                  </option>
-                ))}
-              </select>
-
-              {selectedPrTitle ? (
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                  <p className="font-medium">{selectedPrTitle}</p>
-                  <a className="text-brand-700 underline" href={selectedPrUrl} target="_blank" rel="noreferrer">
-                    Open on GitHub
-                  </a>
-                </div>
-              ) : null}
+                onSelectPullRequest={(pullNumber) => {
+                  void selectPullRequest(pullNumber);
+                }}
+              />
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium uppercase text-slate-500">Diff Preview</label>
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      void runAnalysis();
-                    }}
-                    disabled={!pack || !currentMemory || !selectedPrUrl || !prDiff || running || loadingBootstrap}
-                  >
-                    {running ? "Running..." : "Run Analysis"}
-                  </Button>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Diff preview</label>
+                  <p className="text-xs text-[var(--text-muted)]">Jump from findings to exact lines</p>
                 </div>
-                <pre className="h-[340px] overflow-auto rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-emerald-200">
-                  {prDiff || "Load a pull request to see diff."}
-                </pre>
+
+                <DiffPanel
+                  diffText={prDiff}
+                  loading={loadingDiff}
+                  jumpAnchor={diffJumpAnchor}
+                  onJumpHandled={() => setDiffJumpAnchor(null)}
+                />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="min-h-[620px]">
+          <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Review Engine</CardTitle>
-                {currentMemory ? <Badge variant="info">Memory v{currentMemory.version}</Badge> : null}
-              </div>
+              <CardTitle>Review Engine</CardTitle>
             </CardHeader>
             <CardContent>
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                {panelState.view === "memory" && currentMemory ? (
-                  <section className="space-y-3">
-                    <p className="text-sm text-slate-600">Current team memory used for review runs.</p>
-                    <pre className="h-[410px] overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800">
-                      {currentMemory.content}
-                    </pre>
-                  </section>
-                ) : null}
-
-                {panelState.view === "assembling" ? (
-                  <section className="space-y-4">
-                    <p className="text-sm font-medium text-slate-800">Assembling Context...</p>
-                    <ul className="space-y-2">
-                      {panelState.checklist.map((entry, index) => (
-                        <motion.li
-                          key={entry}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.18 }}
-                          className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                        >
-                          <span>✅</span>
-                          <span>{entry}</span>
-                        </motion.li>
-                      ))}
-                    </ul>
-                    <p className="text-xs text-slate-500">Sending context to Codex...</p>
-                  </section>
-                ) : null}
-
-                {panelState.view === "results" && currentRun && currentResult ? (
-                  <section className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-slate-700">{currentResult.summary}</p>
-                      <Badge variant={mergeVariant(currentRun.merge_recommendation)}>
-                        {currentRun.merge_recommendation.toUpperCase()}
-                      </Badge>
-                    </div>
-
-                    <div className="max-h-[330px] space-y-2 overflow-auto pr-1">
-                      {currentResult.findings.map((finding, index) => (
-                        <div key={`${finding.file}-${index}`} className="rounded-md border border-slate-200 p-3">
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-slate-900">{finding.title}</p>
-                            <Badge variant={severityVariant(finding.severity)}>{finding.severity}</Badge>
-                          </div>
-                          <p className="text-xs text-slate-500">
-                            {finding.file}:{finding.line}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-700">{finding.description}</p>
-                          {finding.memory_reference ? (
-                            <p className="mt-1 text-xs text-slate-500">Memory: {finding.memory_reference}</p>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-
-                    {currentResult.memory_suggestions[0] ? (
-                      <div className="rounded-md border border-brand-200 bg-brand-50 p-3">
-                        <p className="text-sm font-medium text-brand-900">Memory suggestion</p>
-                        <p className="text-xs text-brand-800">{currentResult.memory_suggestions[0].content}</p>
-                        <Button
-                          className="mt-2"
-                          onClick={() => {
-                            void promoteSuggestion();
-                          }}
-                          disabled={promoting}
-                        >
-                          {promoting ? "Promoting..." : "Promote to Memory"}
-                        </Button>
-                      </div>
-                    ) : null}
-
-                    <div className="flex gap-2">
-                      <Button variant="secondary" onClick={showCompare} disabled={runs.length < 2}>
-                        Compare Runs
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => dispatch({ type: "SHOW_MEMORY" })}
-                      >
-                        View Memory
-                      </Button>
-                    </div>
-                  </section>
-                ) : null}
-
-                {panelState.view === "compare" ? (
-                  <section className="space-y-3">
-                    <p className="text-sm font-medium text-slate-800">Compare Runs</p>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {compareRuns.map((run, index) => (
-                        <div key={run?.id ?? index} className="rounded-md border border-slate-200 p-3">
-                          <p className="text-sm font-semibold text-slate-900">Run {index + 1}</p>
-                          <p className="text-xs text-slate-500">{run?.id ?? "N/A"}</p>
-                          <div className="mt-2 space-y-2">
-                            {run?.parsed_findings.map((finding) => {
-                              const isNew =
-                                index === 1 &&
-                                compareNewFindings.some(
-                                  (candidate) =>
-                                    candidate.file === finding.file && candidate.title === finding.title
-                                );
-
-                              return (
-                                <div key={`${finding.file}-${finding.title}`} className="rounded-md bg-slate-50 p-2">
-                                  <p className="text-xs font-medium text-slate-800">{finding.title}</p>
-                                  {isNew ? <Badge variant="info">NEW</Badge> : null}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <Button variant="ghost" onClick={() => dispatch({ type: "SHOW_RESULTS", runId: currentRun?.id ?? "" })}>
-                      Back to Results
-                    </Button>
-                  </section>
-                ) : null}
-
-                {panelState.view === "error" ? (
-                  <section className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4">
-                    <p className="text-sm font-medium text-red-800">Analysis failed</p>
-                    <p className="text-sm text-red-700">{panelState.message}</p>
-                    {panelState.retryable ? (
-                      <Button
-                        variant="danger"
-                        onClick={() => {
-                          dispatch({ type: "SHOW_MEMORY" });
-                        }}
-                      >
-                        Recover
-                      </Button>
-                    ) : null}
-                  </section>
-                ) : null}
-              </motion.div>
+              <ResultsPanel
+                uiState={uiState}
+                activeTab={activeTab}
+                currentRun={currentRun}
+                currentResult={currentResult}
+                currentMemory={currentMemory}
+                currentMemoryId={currentMemoryId}
+                memoryVersions={memoryVersions}
+                runs={runs}
+                promoting={promoting}
+                selectedPrUrl={selectedPrUrl}
+                onSelectTab={setActiveTab}
+                onChangeMemory={setCurrentMemoryId}
+                onProposeRule={() => {
+                  void proposeRule();
+                }}
+                onJumpToFinding={handleJumpToFinding}
+                onCancelRun={cancelRun}
+                onRecoverError={() => dispatchUiState({ type: "CLEAR_ERROR" })}
+              />
             </CardContent>
           </Card>
         </section>
 
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {["Dependency Governance Pack", "CI Incident Triage Pack", "Checkout Test Repair Pack"].map((name) => (
-            <Card key={name}>
-              <CardContent className="flex items-center justify-between p-4">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{name}</p>
-                  <p className="text-xs text-slate-500">Coming Soon</p>
-                </div>
-                <Badge variant="neutral">Planned</Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
+        <MorePacksDrawer />
       </div>
     </main>
   );
