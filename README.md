@@ -60,7 +60,7 @@ npm run build
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
 - `OPENAI_API_KEY`
-- `DEMO_REPO` (optional, defaults to `mo-demo/ecommerce-checkout`)
+- `DEMO_REPO` (optional, defaults to `mmeigooni/ecommerce-checkout-demo`)
 
 ## Notes
 

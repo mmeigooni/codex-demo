@@ -95,7 +95,7 @@ describe("executeRunPipeline", () => {
       {
         workflowPack: pack,
         memoryVersion: memory,
-        prUrl: "https://github.com/mo-demo/ecommerce-checkout/pull/1",
+        prUrl: "https://github.com/mmeigooni/ecommerce-checkout-demo/pull/2",
         prTitle: "Add express checkout endpoint",
         preparedDiff: {
           diff: "diff --git a/src/checkout/a.ts b/src/checkout/a.ts",
