@@ -1,3 +1,5 @@
+import { DEFAULT_DEMO_REPO } from "@/lib/constants";
+
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
@@ -19,7 +21,7 @@ export function getServerEnv(): {
     supabasePublishableKey: requireEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     supabaseSecretKey: requireEnv("SUPABASE_SECRET_KEY"),
     openAiApiKey: requireEnv("OPENAI_API_KEY"),
-    demoRepo: process.env.DEMO_REPO ?? "mo-demo/ecommerce-checkout"
+    demoRepo: process.env.DEMO_REPO ?? DEFAULT_DEMO_REPO
   };
 }
 

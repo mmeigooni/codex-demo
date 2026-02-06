@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findNewFindings } from "@/lib/compare";
+import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type {
   Finding,
@@ -17,8 +18,6 @@ import type {
   RunResult,
   WorkflowPack
 } from "@/lib/types";
-
-const DEFAULT_REPO = "mo-demo/ecommerce-checkout";
 
 type SessionLike = {
   user: {
@@ -90,7 +89,7 @@ export function WorkflowDashboard() {
   const [panelState, dispatch] = useReducer(panelReducer, { view: "memory" } as PanelState);
   const [session, setSession] = useState<SessionLike | null>(null);
 
-  const [repo, setRepo] = useState(DEFAULT_REPO);
+  const [repo, setRepo] = useState(DEFAULT_DEMO_REPO);
   const [pack, setPack] = useState<WorkflowPack | null>(null);
   const [memoryVersions, setMemoryVersions] = useState<MemoryVersion[]>([]);
   const [currentMemoryId, setCurrentMemoryId] = useState<string | null>(null);
@@ -413,7 +412,7 @@ export function WorkflowDashboard() {
                     provider: "github",
                     options: {
                       redirectTo: `${window.location.origin}/auth/callback`,
-                      scopes: "repo read:user"
+                      scopes: GITHUB_OAUTH_SCOPES
                     }
                   });
                 }}
