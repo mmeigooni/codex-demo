@@ -72,6 +72,12 @@ npm run dev
 8. Open:
 - `http://localhost:3000`
 
+9. Enable repo-managed git hooks (one time per local clone):
+
+```bash
+npm run setup:hooks
+```
+
 ## Environment Variables
 Required:
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -87,7 +93,26 @@ Optional:
 npm run typecheck
 npm run test:run
 npm run build
+npm run verify:hooks
 ```
+
+## Automatic Post-Commit Codex Checks
+Once hooks are set up, every successful `git commit` in this clone automatically runs `.githooks/post-commit`.
+
+What it does in plain English:
+- It reviews the commit with Codex and writes results to `.git/codex/review-<sha>.txt`.
+- It asks Codex whether docs should change (`README*.md`, `docs/**/*.md`, `CHANGELOG.md`, `CONTRIBUTING.md`).
+- If docs changes are needed, it creates one follow-up docs-only commit with marker `[codex-doc-sync]`.
+- If docs changes are not needed, it exits without extra commits.
+- It skips itself on `[codex-doc-sync]` commits so it does not loop.
+
+Notes:
+- Hook logs are stored in `.git/codex/` (`review-<sha>.txt` and `docsync-<sha>.log`).
+- Git hooks are local machine settings; each clone/developer runs `npm run setup:hooks` once.
+
+Troubleshooting:
+- If `codex` is not installed or not authenticated, the hook logs the issue and does not block your original commit.
+- Verify setup any time with `npm run verify:hooks`.
 
 ## Known MVP Limits / Deferred Hardening
 - Single-user demo context; no multi-tenant isolation.
