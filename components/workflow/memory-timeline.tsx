@@ -32,7 +32,13 @@ function verdictLabel(verdict?: TimelineNode["verdict"]): string {
   return "RUN";
 }
 
-export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode, compact = false }: MemoryTimelineProps) {
+function salienceLabel(verdict?: TimelineNode["verdict"]): "high" | "medium" | "low" {
+  if (verdict === "block") return "high";
+  if (verdict === "warnings") return "medium";
+  return "low";
+}
+
+export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode, compact = false, storyMode = "off" }: MemoryTimelineProps) {
   if (!nodes.length) {
     return (
       <section className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-muted)]">
@@ -45,9 +51,13 @@ export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode, compact = 
     <section className={`space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] ${compact ? "p-3" : "p-4"} shadow-[var(--shadow-soft)]`}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold text-[var(--text-strong)]">Memory Timeline</p>
+          <p className="text-sm font-semibold text-[var(--text-strong)]">{storyMode === "on" ? "Episode Timeline" : "Memory Timeline"}</p>
           {!compact ? (
-            <p className="text-xs text-[var(--text-muted)]">Track learning over runs and jump directly to the underlying context.</p>
+            <p className="text-xs text-[var(--text-muted)]">
+              {storyMode === "on"
+                ? "Track episode salience over time and jump directly to reinforcing context."
+                : "Track learning over runs and jump directly to the underlying context."}
+            </p>
           ) : null}
         </div>
       </div>
@@ -82,7 +92,11 @@ export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode, compact = 
                     />
                     <div className="space-y-1">
                       <div className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}>
-                        {isMemoryNode ? `MEMORY v${node.memoryVersion ?? "-"}` : verdictLabel(node.verdict)}
+                        {isMemoryNode
+                          ? `${storyMode === "on" ? "INDEX" : "MEMORY"} v${node.memoryVersion ?? "-"}`
+                          : storyMode === "on"
+                            ? `${verdictLabel(node.verdict)} · ${salienceLabel(node.verdict)}`
+                            : verdictLabel(node.verdict)}
                       </div>
                         <p className={`${compact ? "max-w-[180px]" : "max-w-[210px]"} text-sm font-medium text-[var(--text-strong)]`}>
                           {isMemoryNode ? `Approved by ${node.approvedBy ?? "unknown"}` : node.prTitle ?? "Run"}
