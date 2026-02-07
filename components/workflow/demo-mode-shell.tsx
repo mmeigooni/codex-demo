@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { RehearsalLogDrawer } from "@/components/workflow/rehearsal-log-drawer";
 import { WalkthroughStepper } from "@/components/workflow/walkthrough-stepper";
+import { createRehearsalDraft } from "@/lib/rehearsal-log";
 import type { DemoRoundDefinition, WalkthroughStep } from "@/lib/types";
 
 interface DemoModeShellProps {
@@ -25,6 +27,19 @@ export function DemoModeShell({
   onToggleMode,
   children
 }: DemoModeShellProps) {
+  const [logOpen, setLogOpen] = useState(false);
+  const selectedRound = useMemo(
+    () => rounds.find((round) => round.key === selectedRoundKey) ?? rounds[0],
+    [rounds, selectedRoundKey]
+  );
+  const draft = useMemo(() => createRehearsalDraft(selectedRound), [selectedRound]);
+
+  useEffect(() => {
+    if (currentStep === "prove") {
+      setLogOpen(true);
+    }
+  }, [currentStep, selectedRoundKey]);
+
   return (
     <section className="space-y-4">
       <header className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-4 shadow-[var(--shadow-soft)]">
@@ -51,6 +66,9 @@ export function DemoModeShell({
             <Button variant="secondary" onClick={onToggleMode}>
               Advanced mode
             </Button>
+            <Button variant="ghost" onClick={() => setLogOpen((value) => !value)}>
+              {logOpen ? "Hide evidence" : "Evidence draft"}
+            </Button>
           </div>
         </div>
 
@@ -66,6 +84,8 @@ export function DemoModeShell({
       </header>
 
       <div>{children}</div>
+
+      <RehearsalLogDrawer open={logOpen} draft={draft} onClose={() => setLogOpen(false)} />
     </section>
   );
 }
