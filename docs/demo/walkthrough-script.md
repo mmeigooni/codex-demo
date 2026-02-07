@@ -1,49 +1,76 @@
-# Workflow Packs Demo Walkthrough Script (5 Minutes)
+# Hippocampus Story Mode Walkthrough (5 Minutes)
 
-## Setup
-- Mode: Workflow mode (`?mode=demo`)
+## Setup (00:00-00:30)
+- App mode: `?mode=demo`
+- Story Mode: `on`
 - Repo: `mmeigooni/ecommerce-checkout-demo`
-- Use scenario-tagged PRs in this order:
-  - `[baseline]` -> `[catch]` -> `[learn]` -> `[transfer]`
+- Scenario order:
+  1. `[baseline]`
+  2. `[catch]`
+  3. `[learn]`
+  4. `[transfer]`
 
-## Act 1: Baseline Context (`[baseline]`)
-1. Select PR `Smoke test: docs and retry tuning [baseline]`.
-2. Confirm suggested pack and run review.
-3. Narrate:
-- "This is the control path: normal checkout context and expected stable recommendation."
-4. Codex behind the scenes:
-- "Codex is assembling PR diff + selected workflow pack scope + current memory version into a typed review prompt."
-- "The app computes merge recommendation server-side from structured findings."
+## Opening Frame (00:30-00:45)
+Narration:
+- "This system keeps utility first, but Story Mode makes memory mechanics legible."
+- "We model hippocampal behavior: scan, detect, index, and consolidate."
 
-## Act 2: Catch and Recommendation (`[catch]`)
-1. Select PR `Add express checkout endpoint [catch]`.
-2. Run review and highlight high-signal findings.
-3. Narrate:
-- "This scenario demonstrates detection of risky implementation details in a realistic PR."
-4. If memory suggestion appears, narrate:
-- "Recommendation captures repeated review knowledge as reusable team memory."
-5. Promote rule when appropriate.
+## Act 1 - Signal (00:45-01:45)
+Scenario: `[baseline]`
 
-## Act 3: Learning and Application (`[learn]` -> `[transfer]`)
-1. Select PR `Use exponential backoff with jitter in retry helper [learn]`.
-2. Run review and narrate memory-aware progression (`Review -> Recommend -> Apply`).
-3. Select PR `Strengthen checkout input validation and error messaging [transfer]`.
-4. Run review to show the same learned constraints transferring to another code area.
-5. Use Apply Fix once when available and narrate guardrail behavior.
+1. Select PR and confirm pack suggestion.
+2. Run review and call out:
+- Runtime lane still shows product flow (`Review/Recommend/Apply`).
+- Story layer overlays phase semantics (`Scan/Detect/Index/Consolidate`) when relevant.
 
-## Optional Variance PR
-- `Normalize charge input handling in payment adapter [baseline]`
-- Use as fallback baseline scenario if another run has variance.
+Behind-the-scenes callout:
+- "Codex assembles PR diff, workflow pack scope, and active memory version before inference."
 
-## Evidence Workflow
-1. Open `Details` and capture context as needed (Diff, Timeline, Memory, Run details).
-2. Open `Evidence draft` and add operator notes.
-3. Copy markdown into `docs/demo/rehearsal-evidence-log.md`.
-4. Record run IDs, source (`live` or `fallback`), and observed runtime phase path.
+## Act 2 - Conflict (01:45-03:05)
+Scenario: `[catch]`
 
-## Final Recording Checklist
-- PR-first selection is visible before run.
-- Pack suggestion + lock behavior is visible at least once.
-- Runtime phase bar updates across scenarios.
-- Details drawer is used for deep context, not the default lane.
-- At least one explicit "what Codex is doing behind the scenes" callout is delivered per act.
+1. Select PR with known risk signal.
+2. Run review and highlight:
+- High-salience narrative message in review lane.
+- Context cues from title markers.
+- Findings with severity and memory references.
+
+Behind-the-scenes callout:
+- "Findings are structured and validated; merge recommendation is computed server-side, not by prompt prose."
+
+## Act 3 - Learning (03:05-04:25)
+Scenarios: `[learn]` then `[transfer]`
+
+1. Execute `[learn]` and capture recommendation/index behavior.
+2. Promote memory when appropriate.
+3. Execute `[transfer]` and narrate cross-context reuse.
+4. Use Apply Fix once when eligible and narrate guardrail.
+
+Behind-the-scenes callout:
+- "The app preserves deterministic phase/state transitions while Story Mode explains why a memory should matter now."
+
+## Details Drawer Moment (04:25-04:45)
+1. Open details icon.
+2. In Story Mode, narrate labels:
+- `Evidence`
+- `Episodes`
+- `Index`
+- `Cortex Record`
+
+## Closing and Proof (04:45-05:00)
+Narration:
+- "The same runtime is now more legible: reviewers move faster, and memory learning is easier to trust and explain."
+
+## Fallback Path (If Live API Variance Appears)
+1. If token/session variance occurs, reconnect GitHub and refresh PRs.
+2. If run quality varies, use a second PR in the same marker category.
+3. If recommendation does not appear, continue with transfer narrative using available findings + details drawer evidence.
+4. Always capture run IDs/source (`live` or `fallback`) in rehearsal log.
+
+## Recording Checklist
+- [ ] Story Mode toggle shown in top bar.
+- [ ] Brain hero visible at least once during demo mode flow.
+- [ ] Runtime bar demonstrates utility + story framing.
+- [ ] At least one high-salience explanation delivered.
+- [ ] Details drawer opened and narrated with Story Mode labels.
+- [ ] One explicit Codex technical callout per act.
