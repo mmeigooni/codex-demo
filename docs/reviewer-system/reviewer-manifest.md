@@ -27,6 +27,7 @@ Required reviewer skills:
 npx skills add wshobson/agents --skill multi-reviewer-patterns --skill code-review-excellence --skill nextjs-app-router-patterns --skill javascript-testing-patterns -g -y
 npx skills add getsentry/skills --skill code-simplifier -g -y
 npx skills add openai/skills --skill security-best-practices -g -y
+npx skills add supabase/agent-skills --skill supabase-postgres-best-practices -g -y
 ```
 
 ## Installation Verification
