@@ -19,10 +19,19 @@ interface ResultsPanelProps {
   runs: RunRecord[];
   promoting: boolean;
   selectedPrUrl: string;
+  canApplyFix?: boolean;
+  applyingFixIndex?: number | null;
+  applyFixFeedback?: {
+    index: number;
+    type: "success" | "error";
+    message: string;
+    commitUrl?: string;
+  } | null;
   onSelectTab: (tab: RightPanelTab) => void;
   onChangeMemory: (memoryId: string) => void;
   onProposeRule: () => void;
   onJumpToFinding: (finding: Finding) => void;
+  onApplyFix?: (finding: Finding, index: number) => void;
   onCancelRun: () => void;
   onRecoverError: () => void;
 }
@@ -135,10 +144,14 @@ export function ResultsPanel({
   runs,
   promoting,
   selectedPrUrl,
+  canApplyFix = false,
+  applyingFixIndex = null,
+  applyFixFeedback = null,
   onSelectTab,
   onChangeMemory,
   onProposeRule,
   onJumpToFinding,
+  onApplyFix,
   onCancelRun,
   onRecoverError
 }: ResultsPanelProps) {
@@ -308,6 +321,16 @@ export function ResultsPanel({
                       ) : null}
 
                       <div className="mt-2 flex flex-wrap gap-2">
+                        {onApplyFix && finding.suggested_fix && canApplyFix ? (
+                          <Button
+                            variant="default"
+                            className="px-2 py-1 text-xs"
+                            disabled={applyingFixIndex === index}
+                            onClick={() => onApplyFix(finding, index)}
+                          >
+                            {applyingFixIndex === index ? "Applying..." : "Apply Fix"}
+                          </Button>
+                        ) : null}
                         <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => onJumpToFinding(finding)}>
                           Jump to diff
                         </Button>
@@ -346,6 +369,28 @@ export function ResultsPanel({
                           {expanded ? "Collapse" : "Expand"}
                         </Button>
                       </div>
+
+                      {applyFixFeedback?.index === index ? (
+                        <div
+                          className={`mt-2 rounded-[var(--radius-input)] border px-2 py-1 text-xs ${
+                            applyFixFeedback.type === "success"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "border-rose-200 bg-rose-50 text-rose-800"
+                          }`}
+                        >
+                          {applyFixFeedback.message}
+                          {applyFixFeedback.type === "success" && applyFixFeedback.commitUrl ? (
+                            <a
+                              href={applyFixFeedback.commitUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="ml-2 underline"
+                            >
+                              View commit
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </article>
                   );
                 })}
