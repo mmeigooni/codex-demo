@@ -1,4 +1,5 @@
 import { PrContextPanel } from "@/components/workflow/pr-context-panel";
+import type { StoryMode } from "@/lib/brain-story-state";
 import type { GitHubPullRequest } from "@/lib/types";
 
 interface PrFirstSelectorProps {
@@ -12,6 +13,7 @@ interface PrFirstSelectorProps {
   selectedPrNumber: number | null;
   selectedPrTitle: string;
   selectedPrUrl: string;
+  storyMode?: StoryMode;
   onRefreshPullRequests: () => void;
   onSelectPullRequest: (pullNumber: number) => void;
 }
@@ -27,6 +29,7 @@ export function PrFirstSelector({
   selectedPrNumber,
   selectedPrTitle,
   selectedPrUrl,
+  storyMode = "off",
   onRefreshPullRequests,
   onSelectPullRequest
 }: PrFirstSelectorProps) {
@@ -49,6 +52,7 @@ export function PrFirstSelector({
         selectedPrNumber={selectedPrNumber}
         selectedPrTitle={selectedPrTitle}
         selectedPrUrl={selectedPrUrl}
+        storyMode={storyMode}
         onRefreshPullRequests={onRefreshPullRequests}
         onSelectPullRequest={onSelectPullRequest}
       />
