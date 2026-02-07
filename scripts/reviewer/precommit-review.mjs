@@ -19,6 +19,7 @@ const RELEVANT_EXTENSIONS = new Set([
   ".yaml",
   ".yml",
 ]);
+const RELEVANT_PREFIXES = ["app/", "components/", "lib/", "tests/", "docs/", "supabase/", ".github/"];
 
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs)$/;
@@ -103,6 +104,34 @@ function stripCodeExtension(relPath) {
     return relPath;
   }
   return relPath.slice(0, -ext.length);
+}
+
+function isRelevantPath(relPath) {
+  const ext = path.extname(relPath);
+  if (RELEVANT_EXTENSIONS.has(ext)) {
+    return true;
+  }
+  return RELEVANT_PREFIXES.some((prefix) => relPath.startsWith(prefix));
+}
+
+function listPartiallyStagedFiles(repoRoot, stagedFiles) {
+  const unstagedResult = git(["diff", "--name-only", "--diff-filter=ACMR"], repoRoot);
+  if (unstagedResult.code !== 0) {
+    return { error: "failed to determine unstaged file set", files: [] };
+  }
+
+  const unstagedSet = new Set(
+    unstagedResult.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map(normalizePath),
+  );
+
+  return {
+    error: null,
+    files: stagedFiles.filter((file) => unstagedSet.has(file)),
+  };
 }
 
 function sourceHasStagedTest(sourceRelPath, stagedSet) {
@@ -497,14 +526,63 @@ function main() {
     .map((line) => line.trim())
     .filter(Boolean)
     .map(normalizePath)
-    .filter((file) => {
-      const ext = path.extname(file);
-      return RELEVANT_EXTENSIONS.has(ext) || file.startsWith("app/") || file.startsWith("docs/") || file.startsWith("lib/");
-    });
+    .filter((file) => isRelevantPath(file));
 
   if (stagedFiles.length === 0) {
     console.log("[ai-review] no relevant staged files for review.");
     return 0;
+  }
+
+  const partialCheck = listPartiallyStagedFiles(repoRoot, stagedFiles);
+  if (partialCheck.error) {
+    console.error(`[ai-review] ${partialCheck.error}; allowing commit with warning.`);
+    return 1;
+  }
+  if (partialCheck.files.length > 0) {
+    const timestamp = nowIsoCompact();
+    const findingsPayload = {
+      overallSummary:
+        "Partially staged files detected. Accurate staged-snapshot review is skipped to avoid evaluating unstaged content.",
+      findings: [],
+      metadata: {
+        partiallyStagedFiles: partialCheck.files,
+        policy: "warning-only",
+      },
+    };
+
+    const reportMd = renderMarkdownReport({
+      repoRoot,
+      reviewers: [],
+      stagedFiles,
+      selectedFiles: stagedFiles,
+      truncated: false,
+      excludedFiles: [],
+      findings: [],
+      overallSummary:
+        "Partially staged files were detected; run `git add -p`/`git add` to align staged and working copy before relying on blocking policy.",
+      commandStatus: "warning",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+    });
+
+    const summaryText = renderSummaryText({
+      commandStatus: "warning",
+      findings: [],
+      blockingFindings: [],
+      reportPath: path.join(artifactDir, `review-${timestamp}.md`),
+    });
+
+    const artifacts = writeArtifacts({
+      artifactDir,
+      timestamp,
+      findingsPayload,
+      reportMd,
+      summaryText,
+    });
+
+    console.error("[ai-review] partially staged files detected; allowing commit with warning.");
+    console.error(`[ai-review] report: ${artifacts.reportPath}`);
+    return 1;
   }
 
   const configPath = path.join(repoRoot, "scripts", "reviewer", "reviewer-selection.json");
