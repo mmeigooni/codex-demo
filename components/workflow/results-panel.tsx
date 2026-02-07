@@ -2,6 +2,8 @@ import { useMemo, useState, type JSX } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DemoFindingsList } from "@/components/workflow/demo-findings-list";
+import { DetailsDrawer } from "@/components/workflow/details-drawer";
 import { MemoryPanel } from "@/components/workflow/memory-panel";
 import { RunDetailsPanel } from "@/components/workflow/run-details-panel";
 import { extractDiffFileSummaries } from "@/lib/diff-anchors";
@@ -156,6 +158,8 @@ export function ResultsPanel({
   onRecoverError
 }: ResultsPanelProps) {
   const [expandedFindingIndex, setExpandedFindingIndex] = useState<number | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const isDemoMode = uiState.viewMode === "demo";
 
   const findingSummary = useMemo(
     () => summarizeFindings(currentResult?.findings ?? []),
@@ -179,26 +183,44 @@ export function ResultsPanel({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1">
-          <Button variant={activeTab === "findings" ? "secondary" : "ghost"} className="px-2 py-1 text-xs" onClick={() => onSelectTab("findings")}>
-            Findings
-          </Button>
-          <Button variant={activeTab === "memory" ? "secondary" : "ghost"} className="px-2 py-1 text-xs" onClick={() => onSelectTab("memory")}>
-            Memory
-          </Button>
-          <Button
-            variant={activeTab === "run_details" ? "secondary" : "ghost"}
-            className="px-2 py-1 text-xs"
-            onClick={() => onSelectTab("run_details")}
-          >
-            Run details
-          </Button>
-        </div>
+        {!isDemoMode ? (
+          <div className="flex items-center gap-1 rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1">
+            <Button variant={activeTab === "findings" ? "secondary" : "ghost"} className="px-2 py-1 text-xs" onClick={() => onSelectTab("findings")}>
+              Findings
+            </Button>
+            <Button variant={activeTab === "memory" ? "secondary" : "ghost"} className="px-2 py-1 text-xs" onClick={() => onSelectTab("memory")}>
+              Memory
+            </Button>
+            <Button
+              variant={activeTab === "run_details" ? "secondary" : "ghost"}
+              className="px-2 py-1 text-xs"
+              onClick={() => onSelectTab("run_details")}
+            >
+              Run details
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Demo lane</p>
+        )}
 
         {currentMemory ? <Badge variant="info">Memory v{currentMemory.version}</Badge> : null}
       </div>
 
-      {activeTab === "memory" ? (
+      {isDemoMode ? (
+        <DetailsDrawer open={detailsOpen} onToggle={() => setDetailsOpen((value) => !value)}>
+          <div className="space-y-3">
+            <MemoryPanel
+              memoryVersions={memoryVersions}
+              currentMemory={currentMemory}
+              currentMemoryId={currentMemoryId}
+              onChangeMemory={onChangeMemory}
+            />
+            <RunDetailsPanel currentRun={currentRun} runs={runs} />
+          </div>
+        </DetailsDrawer>
+      ) : null}
+
+      {!isDemoMode && activeTab === "memory" ? (
         <MemoryPanel
           memoryVersions={memoryVersions}
           currentMemory={currentMemory}
@@ -207,9 +229,9 @@ export function ResultsPanel({
         />
       ) : null}
 
-      {activeTab === "run_details" ? <RunDetailsPanel currentRun={currentRun} runs={runs} /> : null}
+      {!isDemoMode && activeTab === "run_details" ? <RunDetailsPanel currentRun={currentRun} runs={runs} /> : null}
 
-      {activeTab === "findings" ? (
+      {(isDemoMode || activeTab === "findings") ? (
         <>
           {uiState.status === "signed_out" ? (
             <section className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
@@ -273,138 +295,154 @@ export function ResultsPanel({
 
           {currentRun && currentResult ? (
             <section className="space-y-3">
-              <header className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-[var(--text-strong)]">{currentResult.summary}</p>
-                  <Badge variant={statusBadgeVariant(mergeRecommendationLabel(currentRun.merge_recommendation))}>
-                    {mergeRecommendationLabel(currentRun.merge_recommendation)}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  critical: {findingSummary.critical} · warning: {findingSummary.warning} · info: {findingSummary.info} · files: {diffSummary.files} · LOC: {diffSummary.loc} · runtime: {currentRun.duration_ms}ms
-                </p>
-              </header>
+              {isDemoMode ? (
+                <DemoFindingsList
+                  currentRun={currentRun}
+                  currentResult={currentResult}
+                  promoting={promoting}
+                  canApplyFix={canApplyFix}
+                  applyingFixIndex={applyingFixIndex}
+                  applyFixFeedback={applyFixFeedback}
+                  onProposeRule={onProposeRule}
+                  onJumpToFinding={onJumpToFinding}
+                  onApplyFix={onApplyFix}
+                />
+              ) : (
+                <>
+                  <header className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">{currentResult.summary}</p>
+                      <Badge variant={statusBadgeVariant(mergeRecommendationLabel(currentRun.merge_recommendation))}>
+                        {mergeRecommendationLabel(currentRun.merge_recommendation)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      critical: {findingSummary.critical} · warning: {findingSummary.warning} · info: {findingSummary.info} · files: {diffSummary.files} · LOC: {diffSummary.loc} · runtime: {currentRun.duration_ms}ms
+                    </p>
+                  </header>
 
-              <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
-                {currentResult.findings.map((finding, index) => {
-                  const expanded = expandedFindingIndex === index;
+                  <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
+                    {currentResult.findings.map((finding, index) => {
+                      const expanded = expandedFindingIndex === index;
 
-                  return (
-                    <article key={`${finding.file}-${finding.line}-${index}`} className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h4 className="text-sm font-semibold text-[var(--text-strong)]">{finding.title}</h4>
-                        <Badge variant={severityVariant(finding.severity)}>{finding.severity}</Badge>
-                      </div>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {finding.file}:{finding.line}
-                      </p>
-                      <p className="mt-1 text-sm text-[var(--text-muted)]">Why: {finding.description}</p>
-                      <div className="mt-2">
-                        {finding.memory_reference ? (
-                          <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
-                            Caught by memory rule: {finding.memory_reference}
-                          </span>
-                        ) : (
-                          <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">
-                            Heuristic detection
-                          </span>
-                        )}
-                      </div>
+                      return (
+                        <article key={`${finding.file}-${finding.line}-${index}`} className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="text-sm font-semibold text-[var(--text-strong)]">{finding.title}</h4>
+                            <Badge variant={severityVariant(finding.severity)}>{finding.severity}</Badge>
+                          </div>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {finding.file}:{finding.line}
+                          </p>
+                          <p className="mt-1 text-sm text-[var(--text-muted)]">Why: {finding.description}</p>
+                          <div className="mt-2">
+                            {finding.memory_reference ? (
+                              <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
+                                Caught by memory rule: {finding.memory_reference}
+                              </span>
+                            ) : (
+                              <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">
+                                Heuristic detection
+                              </span>
+                            )}
+                          </div>
 
-                      {renderSuggestedFix(finding.suggested_fix)}
+                          {renderSuggestedFix(finding.suggested_fix)}
 
-                      {expanded ? (
-                        <div className="mt-2 rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 text-xs text-[var(--text-muted)]">
-                          <p>Source: {finding.memory_reference ? `memory rule (${finding.memory_reference})` : "heuristic/model"}</p>
-                          <p>Confidence: medium</p>
-                        </div>
-                      ) : null}
+                          {expanded ? (
+                            <div className="mt-2 rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 text-xs text-[var(--text-muted)]">
+                              <p>Source: {finding.memory_reference ? `memory rule (${finding.memory_reference})` : "heuristic/model"}</p>
+                              <p>Confidence: medium</p>
+                            </div>
+                          ) : null}
 
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {onApplyFix && finding.suggested_fix && canApplyFix ? (
-                          <Button
-                            variant="default"
-                            className="px-2 py-1 text-xs"
-                            disabled={applyingFixIndex === index}
-                            onClick={() => onApplyFix(finding, index)}
-                          >
-                            {applyingFixIndex === index ? "Applying..." : "Apply Fix"}
-                          </Button>
-                        ) : null}
-                        <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => onJumpToFinding(finding)}>
-                          Jump to diff
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="px-2 py-1 text-xs"
-                          onClick={async () => {
-                            if (navigator.clipboard) {
-                              await navigator.clipboard.writeText(findingToMarkdownComment(finding));
-                            }
-                          }}
-                        >
-                          Copy PR comment
-                        </Button>
-                        <a
-                          href={selectedPrUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center rounded-[var(--radius-input)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
-                        >
-                          Open in GitHub
-                        </a>
-                        <a
-                          href={toIssueUrl(selectedPrUrl, finding)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center rounded-[var(--radius-input)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
-                        >
-                          Create issue
-                        </a>
-                        <Button
-                          variant="ghost"
-                          className="px-2 py-1 text-xs"
-                          onClick={() => setExpandedFindingIndex(expanded ? null : index)}
-                        >
-                          {expanded ? "Collapse" : "Expand"}
-                        </Button>
-                      </div>
-
-                      {applyFixFeedback?.index === index ? (
-                        <div
-                          className={`mt-2 rounded-[var(--radius-input)] border px-2 py-1 text-xs ${
-                            applyFixFeedback.type === "success"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                              : "border-rose-200 bg-rose-50 text-rose-800"
-                          }`}
-                        >
-                          {applyFixFeedback.message}
-                          {applyFixFeedback.type === "success" && applyFixFeedback.commitUrl ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {onApplyFix && finding.suggested_fix && canApplyFix ? (
+                              <Button
+                                variant="default"
+                                className="px-2 py-1 text-xs"
+                                disabled={applyingFixIndex === index}
+                                onClick={() => onApplyFix(finding, index)}
+                              >
+                                {applyingFixIndex === index ? "Applying..." : "Apply Fix"}
+                              </Button>
+                            ) : null}
+                            <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => onJumpToFinding(finding)}>
+                              Jump to diff
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="px-2 py-1 text-xs"
+                              onClick={async () => {
+                                if (navigator.clipboard) {
+                                  await navigator.clipboard.writeText(findingToMarkdownComment(finding));
+                                }
+                              }}
+                            >
+                              Copy PR comment
+                            </Button>
                             <a
-                              href={applyFixFeedback.commitUrl}
+                              href={selectedPrUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="ml-2 underline"
+                              className="inline-flex items-center rounded-[var(--radius-input)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
                             >
-                              View commit
+                              Open in GitHub
                             </a>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
+                            <a
+                              href={toIssueUrl(selectedPrUrl, finding)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-[var(--radius-input)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
+                            >
+                              Create issue
+                            </a>
+                            <Button
+                              variant="ghost"
+                              className="px-2 py-1 text-xs"
+                              onClick={() => setExpandedFindingIndex(expanded ? null : index)}
+                            >
+                              {expanded ? "Collapse" : "Expand"}
+                            </Button>
+                          </div>
 
-              {currentResult.memory_suggestions[0] ? (
-                <article className="rounded-[var(--radius-input)] border border-[var(--accent)] bg-[var(--accent-soft)] p-3">
-                  <p className="text-sm font-semibold text-[var(--text-strong)]">Memory suggestion</p>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">{currentResult.memory_suggestions[0].content}</p>
-                  <Button className="mt-2" onClick={onProposeRule} disabled={promoting}>
-                    {promoting ? "Proposing..." : "Propose rule"}
-                  </Button>
-                </article>
-              ) : null}
+                          {applyFixFeedback?.index === index ? (
+                            <div
+                              className={`mt-2 rounded-[var(--radius-input)] border px-2 py-1 text-xs ${
+                                applyFixFeedback.type === "success"
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                  : "border-rose-200 bg-rose-50 text-rose-800"
+                              }`}
+                            >
+                              {applyFixFeedback.message}
+                              {applyFixFeedback.type === "success" && applyFixFeedback.commitUrl ? (
+                                <a
+                                  href={applyFixFeedback.commitUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-2 underline"
+                                >
+                                  View commit
+                                </a>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {currentResult.memory_suggestions[0] ? (
+                    <article className="rounded-[var(--radius-input)] border border-[var(--accent)] bg-[var(--accent-soft)] p-3">
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">Memory suggestion</p>
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">{currentResult.memory_suggestions[0].content}</p>
+                      <Button className="mt-2" onClick={onProposeRule} disabled={promoting}>
+                        {promoting ? "Proposing..." : "Propose rule"}
+                      </Button>
+                    </article>
+                  ) : null}
+                </>
+              )}
             </section>
           ) : null}
         </>
