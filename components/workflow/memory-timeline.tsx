@@ -1,3 +1,4 @@
+import type { StoryMode } from "@/lib/brain-story-state";
 import type { TimelineNode } from "@/lib/types";
 
 interface MemoryTimelineProps {
@@ -5,6 +6,7 @@ interface MemoryTimelineProps {
   selectedNodeId?: string;
   onSelectNode: (node: TimelineNode) => void;
   compact?: boolean;
+  storyMode?: StoryMode;
 }
 
 function verdictTone(verdict?: TimelineNode["verdict"]): string {
