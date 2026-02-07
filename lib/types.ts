@@ -79,6 +79,27 @@ export interface PreparedDiff {
 
 export type RunPhase = "assembling" | "evaluating" | "formatting";
 
+export type DemoViewMode = "demo" | "advanced";
+
+export type WalkthroughStep = "review" | "teach" | "prove";
+
+export interface DemoRoundDefinition {
+  key: string;
+  pass: "A" | "B";
+  round: number;
+  objective: string;
+  prNumber: number;
+  memoryVersionBefore: number;
+  expectedRecommendation: MergeRecommendation;
+  allowApplyFix: boolean;
+}
+
+export interface DemoRoundState {
+  roundKey: string | null;
+  walkthroughStep: WalkthroughStep;
+  applyFixUsed: boolean;
+}
+
 export type WorkflowStatus =
   | "signed_out"
   | "repo_loading"
@@ -93,6 +114,10 @@ export interface WorkflowUiState {
   runPhase?: RunPhase;
   message?: string;
   retryable?: boolean;
+  viewMode?: DemoViewMode;
+  walkthroughStep?: WalkthroughStep;
+  roundKey?: string | null;
+  applyFixUsed?: boolean;
 }
 
 export type RightPanelTab = "findings" | "memory" | "run_details";
