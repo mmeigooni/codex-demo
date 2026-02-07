@@ -36,7 +36,7 @@ export function StoryModeToggle({ mode, onChange, disabled = false }: StoryModeT
         }}
       />
       <span className="relative z-10 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">
-        <span aria-hidden="true">🧠</span>
+        <span aria-hidden="true">Neuro</span>
         {mode === "on" ? "Story Mode On" : "Story Mode Off"}
       </span>
     </Button>
