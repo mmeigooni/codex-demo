@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveGitHubTokenFromRequest } from "@/lib/auth";
+import { toAppError } from "@/lib/errors";
 
 export async function GET(request: Request) {
   try {
@@ -11,12 +12,15 @@ export async function GET(request: Request) {
       token_present: Boolean(token)
     });
   } catch (error) {
+    const appError = toAppError(error, "github_token_check_failed");
+
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "unknown_error"
+        error: appError.message,
+        code: appError.code
       },
-      { status: 401 }
+      { status: appError.status }
     );
   }
 }

@@ -111,6 +111,13 @@ export interface GitHubPullRequest {
   additions: number;
   deletions: number;
   changed_files: number;
+  head: {
+    ref: string;
+    sha: string;
+  };
+  base: {
+    ref: string;
+  };
 }
 
 export interface DiffFileSummary {

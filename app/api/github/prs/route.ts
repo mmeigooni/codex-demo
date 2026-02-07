@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveGitHubTokenFromRequest } from "@/lib/auth";
+import { AppError, toErrorResponse } from "@/lib/errors";
 import { createOAuthGitHubAdapter } from "@/lib/github-adapter";
 
 export async function GET(request: Request) {
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
     const repo = url.searchParams.get("repo");
 
     if (!repo) {
-      return NextResponse.json({ error: "Missing required query param: repo" }, { status: 400 });
+      throw new AppError(422, "invalid_repo_param", "Missing required query param: repo");
     }
 
     const token = await resolveGitHubTokenFromRequest(request);
@@ -21,11 +22,6 @@ export async function GET(request: Request) {
       pullRequests
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "unknown_error"
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "github_prs_failed");
   }
 }

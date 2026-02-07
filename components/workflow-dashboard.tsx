@@ -38,7 +38,6 @@ type SessionLike = {
       full_name?: string;
     };
   };
-  provider_token?: string;
 };
 
 function memoryFromSuggestion(memory: MemoryVersion, suggestion: MemorySuggestion): { newContent: string; section: string } {
@@ -101,7 +100,6 @@ export function WorkflowDashboard() {
     session?.user.email ??
     "Anonymous";
 
-  const githubToken = session?.provider_token;
   const repoMessage = repoValidationMessage(repo);
 
   const canRun = canRunAnalysis(
@@ -147,13 +145,7 @@ export function WorkflowDashboard() {
     setLoadingPrs(true);
 
     try {
-      const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(targetRepo)}`, githubToken
-        ? {
-            headers: {
-              "x-github-token": githubToken
-            }
-          }
-        : undefined);
+      const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(targetRepo)}`);
 
       if (!response.ok) {
         throw new Error("Failed to load pull requests");
@@ -191,14 +183,7 @@ export function WorkflowDashboard() {
 
     try {
       const response = await fetch(
-        `/api/github/diff?repo=${encodeURIComponent(normalizeRepoInput(repo))}&pullNumber=${pullNumber}`,
-        githubToken
-          ? {
-              headers: {
-                "x-github-token": githubToken
-              }
-            }
-          : undefined
+        `/api/github/diff?repo=${encodeURIComponent(normalizeRepoInput(repo))}&pullNumber=${pullNumber}`
       );
 
       if (!response.ok) {
@@ -411,7 +396,7 @@ export function WorkflowDashboard() {
 
   useEffect(() => {
     const normalizedRepo = normalizeRepoInput(repo);
-    if (!shouldAutoloadRepo(normalizedRepo, githubToken ?? (session ? "session" : undefined))) {
+    if (!shouldAutoloadRepo(normalizedRepo, session ? "session" : undefined)) {
       return;
     }
 
@@ -422,7 +407,7 @@ export function WorkflowDashboard() {
     return () => {
       clearTimeout(timer);
     };
-  }, [repo, githubToken, session]);
+  }, [repo, session]);
 
   useEffect(() => {
     return () => {
@@ -448,6 +433,7 @@ export function WorkflowDashboard() {
           }}
           onSignOut={async () => {
             if (!supabase) return;
+            await fetch("/api/auth/github-token", { method: "DELETE" });
             await supabase.auth.signOut();
           }}
           onSignIn={async () => {

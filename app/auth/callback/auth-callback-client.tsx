@@ -23,10 +23,21 @@ export function AuthCallbackClient() {
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
         router.replace(`/?auth_error=${encodeURIComponent(error.message)}`);
         return;
+      }
+
+      const providerToken = data.session?.provider_token;
+      if (providerToken) {
+        await fetch("/api/auth/github-token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ providerToken })
+        });
       }
 
       router.replace("/");

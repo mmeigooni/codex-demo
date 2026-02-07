@@ -15,13 +15,17 @@ export function getServerEnv(): {
   supabaseSecretKey: string;
   openAiApiKey: string;
   demoRepo: string;
+  githubTokenCookieSecret: string;
 } {
+  const supabaseSecretKey = requireEnv("SUPABASE_SECRET_KEY");
+
   return {
     supabaseUrl: requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
     supabasePublishableKey: requireEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
-    supabaseSecretKey: requireEnv("SUPABASE_SECRET_KEY"),
+    supabaseSecretKey,
     openAiApiKey: requireEnv("OPENAI_API_KEY"),
-    demoRepo: process.env.DEMO_REPO ?? DEFAULT_DEMO_REPO
+    demoRepo: process.env.DEMO_REPO ?? DEFAULT_DEMO_REPO,
+    githubTokenCookieSecret: process.env.GITHUB_TOKEN_COOKIE_SECRET ?? supabaseSecretKey
   };
 }
 

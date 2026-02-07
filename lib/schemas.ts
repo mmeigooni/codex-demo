@@ -30,6 +30,10 @@ export const runRequestSchema = z.object({
   prDiff: z.string().min(1)
 });
 
+export const githubTokenCookieSchema = z.object({
+  providerToken: z.string().min(1)
+});
+
 export const addedRuleGroupSchema = z.object({
   category: z.string().min(1),
   rules: z.array(z.string().min(1)).min(1)

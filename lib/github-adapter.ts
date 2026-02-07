@@ -1,4 +1,5 @@
 import type { GitHubPullRequest } from "@/lib/types";
+import { AppError } from "@/lib/errors";
 
 export interface GitHubAdapter {
   listPullRequests(repo: string, token: string): Promise<GitHubPullRequest[]>;
@@ -26,6 +27,26 @@ function createHeaders(token: string, accept?: string): HeadersInit {
   };
 }
 
+async function throwGitHubError(response: Response, operation: string): Promise<never> {
+  const body = await response.text();
+
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    throw new AppError(
+      403,
+      "github_access_denied",
+      `${operation} failed (${response.status}): ${body}`,
+      false
+    );
+  }
+
+  throw new AppError(
+    502,
+    "github_upstream_error",
+    `${operation} failed (${response.status}): ${body}`,
+    response.status >= 500 || response.status === 429
+  );
+}
+
 export function createOAuthGitHubAdapter(fetchImpl: typeof fetch = fetch): GitHubAdapter {
   return {
     async listPullRequests(repo, token) {
@@ -36,12 +57,24 @@ export function createOAuthGitHubAdapter(fetchImpl: typeof fetch = fetch): GitHu
       );
 
       if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`GitHub PR list failed (${response.status}): ${body}`);
+        await throwGitHubError(response, "GitHub PR list");
       }
 
-      const data = (await response.json()) as GitHubPullRequest[];
-      return data;
+      const data = (await response.json()) as Array<GitHubPullRequest & {
+        head?: { ref?: string; sha?: string };
+        base?: { ref?: string };
+      }>;
+
+      return data.map((pullRequest) => ({
+        ...pullRequest,
+        head: {
+          ref: pullRequest.head?.ref ?? "",
+          sha: pullRequest.head?.sha ?? ""
+        },
+        base: {
+          ref: pullRequest.base?.ref ?? ""
+        }
+      }));
     },
 
     async getPullRequestDiff(repo, pullNumber, token) {
@@ -52,8 +85,7 @@ export function createOAuthGitHubAdapter(fetchImpl: typeof fetch = fetch): GitHu
       );
 
       if (!metadataResponse.ok) {
-        const body = await metadataResponse.text();
-        throw new Error(`GitHub PR metadata failed (${metadataResponse.status}): ${body}`);
+        await throwGitHubError(metadataResponse, "GitHub PR metadata");
       }
 
       const metadata = (await metadataResponse.json()) as { title: string; html_url: string };
@@ -64,8 +96,7 @@ export function createOAuthGitHubAdapter(fetchImpl: typeof fetch = fetch): GitHu
       );
 
       if (!diffResponse.ok) {
-        const body = await diffResponse.text();
-        throw new Error(`GitHub PR diff failed (${diffResponse.status}): ${body}`);
+        await throwGitHubError(diffResponse, "GitHub PR diff");
       }
 
       return {
