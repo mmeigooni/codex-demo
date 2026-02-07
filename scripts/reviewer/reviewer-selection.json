@@ -1,0 +1,53 @@
+{
+  "maxFiles": 40,
+  "maxBytes": 400000,
+  "always": [
+    "00-orchestrator",
+    "01-code-review-excellence"
+  ],
+  "conditional": [
+    {
+      "reviewer": "03-security",
+      "patterns": [
+        "app/api/**",
+        "lib/auth*",
+        "lib/**/auth*",
+        "lib/env*",
+        ".env*",
+        "next.config.*",
+        "middleware.*"
+      ]
+    },
+    {
+      "reviewer": "04-nextjs",
+      "patterns": [
+        "app/**",
+        "components/**",
+        "next.config.*",
+        "postcss.config.*",
+        "tailwind.config.*"
+      ]
+    },
+    {
+      "reviewer": "06-supabase",
+      "patterns": [
+        "supabase/**",
+        "lib/supabase*",
+        "lib/**/supabase*",
+        "**/*.sql"
+      ]
+    }
+  ],
+  "testing": {
+    "reviewer": "05-testing",
+    "patterns": [
+      "tests/**"
+    ],
+    "enforceForCodeWithoutTests": true
+  },
+  "simplifier": {
+    "reviewer": "02-code-simplifier",
+    "minChangedFiles": 3,
+    "minTotalChangedLines": 120
+  }
+}
