@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { parsePrScenario } from "@/lib/pr-scenario";
 import type { GitHubPullRequest } from "@/lib/types";
 
 interface PrContextPanelProps {
@@ -37,6 +38,14 @@ function formatRelativeTime(updatedAt: string): string {
   }
 
   return `${Math.floor(diffHours / 24)}d ago`;
+}
+
+function scenarioChipClass(tag: string): string {
+  if (tag === "baseline") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (tag === "catch") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (tag === "learn") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (tag === "transfer") return "border-violet-200 bg-violet-50 text-violet-700";
+  return "border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-muted)]";
 }
 
 export function PrContextPanel({
@@ -169,6 +178,18 @@ export function PrContextPanel({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-strong)]">#{pullRequest.number} · {pullRequest.title}</p>
+                      {parsePrScenario(pullRequest.title).tags.length ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {parsePrScenario(pullRequest.title).tags.map((tag) => (
+                            <span
+                              key={`${pullRequest.number}-${tag}`}
+                              className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${scenarioChipClass(tag)}`}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       <p className="mt-0.5 flex items-center gap-1 text-xs text-[var(--text-muted)]">
                         <img
                           src={pullRequest.user.avatar_url}
@@ -195,6 +216,18 @@ export function PrContextPanel({
       {selectedPrTitle ? (
         <article className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
           <p className="text-sm font-semibold text-[var(--text-strong)]">{selectedPrTitle}</p>
+          {parsePrScenario(selectedPrTitle).tags.length ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {parsePrScenario(selectedPrTitle).tags.map((tag) => (
+                <span
+                  key={`selected-${tag}`}
+                  className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${scenarioChipClass(tag)}`}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {selectedPullRequest ? (
             <p className="mt-1 text-xs text-[var(--text-muted)]">
               #{selectedPullRequest.number} · {selectedPullRequest.changed_files} files · +
