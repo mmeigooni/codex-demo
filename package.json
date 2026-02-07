@@ -9,7 +9,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "setup:hooks": "bash scripts/setup-hooks.sh",
+    "verify:hooks": "echo \"core.hooksPath=$(git config --get core.hooksPath || echo unset)\" && ls -l .githooks/post-commit"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
