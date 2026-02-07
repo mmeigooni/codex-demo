@@ -5,7 +5,12 @@ import { runResultSchema } from "@/lib/schemas";
 import type { RunResult } from "@/lib/types";
 
 export async function loadFallbackFixture(memoryVersion: number): Promise<RunResult> {
-  const fixtureFile = memoryVersion <= 1 ? "run1-memory-v1.json" : "run2-memory-v2.json";
+  const fixtureFile =
+    memoryVersion <= 1
+      ? "run1-memory-v1.json"
+      : memoryVersion === 2
+        ? "run2-memory-v2.json"
+        : "run3-memory-v3.json";
   const fixturePath = path.join(process.cwd(), "fixtures", fixtureFile);
   const content = await readFile(fixturePath, "utf8");
   const parsed = JSON.parse(content);
