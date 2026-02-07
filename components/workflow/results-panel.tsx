@@ -3,9 +3,6 @@ import { useMemo, useState, type JSX } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DemoFindingsList } from "@/components/workflow/demo-findings-list";
-import { DetailsDrawer } from "@/components/workflow/details-drawer";
-import { MemoryPanel } from "@/components/workflow/memory-panel";
-import { RunDetailsPanel } from "@/components/workflow/run-details-panel";
 import { extractDiffFileSummaries } from "@/lib/diff-anchors";
 import { findingToMarkdownComment, mergeRecommendationLabel, summarizeFindings } from "@/lib/results-summary";
 import type { Finding, MemoryVersion, RightPanelTab, RunRecord, RunResult, WorkflowUiState } from "@/lib/types";
@@ -137,20 +134,20 @@ function PhaseStepper({ phase }: { phase?: WorkflowUiState["runPhase"] }) {
 
 export function ResultsPanel({
   uiState,
-  activeTab,
+  activeTab: _activeTab,
   currentRun,
   currentResult,
   currentMemory,
-  currentMemoryId,
-  memoryVersions,
-  runs,
+  currentMemoryId: _currentMemoryId,
+  memoryVersions: _memoryVersions,
+  runs: _runs,
   promoting,
   selectedPrUrl,
   canApplyFix = false,
   applyingFixIndex = null,
   applyFixFeedback = null,
-  onSelectTab,
-  onChangeMemory,
+  onSelectTab: _onSelectTab,
+  onChangeMemory: _onChangeMemory,
   onProposeRule,
   onJumpToFinding,
   onApplyFix,
@@ -158,7 +155,6 @@ export function ResultsPanel({
   onRecoverError
 }: ResultsPanelProps) {
   const [expandedFindingIndex, setExpandedFindingIndex] = useState<number | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const isDemoMode = uiState.viewMode === "demo";
 
   const findingSummary = useMemo(
@@ -183,56 +179,12 @@ export function ResultsPanel({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        {!isDemoMode ? (
-          <div className="flex items-center gap-1 rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1">
-            <Button variant={activeTab === "findings" ? "secondary" : "ghost"} className="px-2 py-1 text-xs" onClick={() => onSelectTab("findings")}>
-              Findings
-            </Button>
-            <Button variant={activeTab === "memory" ? "secondary" : "ghost"} className="px-2 py-1 text-xs" onClick={() => onSelectTab("memory")}>
-              Memory
-            </Button>
-            <Button
-              variant={activeTab === "run_details" ? "secondary" : "ghost"}
-              className="px-2 py-1 text-xs"
-              onClick={() => onSelectTab("run_details")}
-            >
-              Run details
-            </Button>
-          </div>
-        ) : (
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Demo lane</p>
-        )}
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Review lane</p>
 
         {currentMemory ? <Badge variant="info">Memory v{currentMemory.version}</Badge> : null}
       </div>
 
-      {isDemoMode ? (
-        <DetailsDrawer open={detailsOpen} onToggle={() => setDetailsOpen((value) => !value)}>
-          <div className="space-y-3">
-            <MemoryPanel
-              memoryVersions={memoryVersions}
-              currentMemory={currentMemory}
-              currentMemoryId={currentMemoryId}
-              onChangeMemory={onChangeMemory}
-            />
-            <RunDetailsPanel currentRun={currentRun} runs={runs} />
-          </div>
-        </DetailsDrawer>
-      ) : null}
-
-      {!isDemoMode && activeTab === "memory" ? (
-        <MemoryPanel
-          memoryVersions={memoryVersions}
-          currentMemory={currentMemory}
-          currentMemoryId={currentMemoryId}
-          onChangeMemory={onChangeMemory}
-        />
-      ) : null}
-
-      {!isDemoMode && activeTab === "run_details" ? <RunDetailsPanel currentRun={currentRun} runs={runs} /> : null}
-
-      {(isDemoMode || activeTab === "findings") ? (
-        <>
+      <>
           {uiState.status === "signed_out" ? (
             <section className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
               <p className="text-sm font-semibold text-[var(--text-strong)]">Connect GitHub to begin</p>
@@ -452,8 +404,7 @@ export function ResultsPanel({
               )}
             </section>
           ) : null}
-        </>
-      ) : null}
+      </>
     </section>
   );
 }
