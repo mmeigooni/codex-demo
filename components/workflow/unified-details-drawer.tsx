@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import type { StoryMode } from "@/lib/brain-story-state";
 
 export interface UnifiedDetailsTab {
   id: string;
@@ -12,19 +13,31 @@ interface UnifiedDetailsDrawerProps {
   open: boolean;
   activeTab: string;
   tabs: UnifiedDetailsTab[];
+  storyMode?: StoryMode;
   onToggle: () => void;
   onSelectTab: (tabId: string) => void;
 }
 
-export function UnifiedDetailsDrawer({ open, activeTab, tabs, onToggle, onSelectTab }: UnifiedDetailsDrawerProps) {
+const STORY_TAB_LABELS: Record<string, string> = {
+  diff: "Evidence",
+  timeline: "Episodes",
+  memory: "Index",
+  run_details: "Cortex Record"
+};
+
+export function UnifiedDetailsDrawer({ open, activeTab, tabs, storyMode = "off", onToggle, onSelectTab }: UnifiedDetailsDrawerProps) {
   const selectedTab = tabs.find((tab) => tab.id === activeTab) ?? tabs[0] ?? null;
 
   return (
     <section className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-3 shadow-[var(--shadow-soft)]">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Details</p>
-          <p className="text-xs text-[var(--text-muted)]">Diff, timeline, memory, and run diagnostics.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">{storyMode === "on" ? "Cognitive Details" : "Details"}</p>
+          <p className="text-xs text-[var(--text-muted)]">
+            {storyMode === "on"
+              ? "Evidence, episode timeline, memory index, and cortical run record."
+              : "Diff, timeline, memory, and run diagnostics."}
+          </p>
         </div>
         <Button
           variant="ghost"
@@ -47,7 +60,7 @@ export function UnifiedDetailsDrawer({ open, activeTab, tabs, onToggle, onSelect
                 className="px-2 py-1 text-xs"
                 onClick={() => onSelectTab(tab.id)}
               >
-                {tab.label}
+                {storyMode === "on" ? STORY_TAB_LABELS[tab.id] ?? tab.label : tab.label}
               </Button>
             ))}
           </div>
