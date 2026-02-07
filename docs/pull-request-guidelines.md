@@ -7,6 +7,15 @@ This repo defaults to the same structure used in PR #7:
 
 The structure is a default, not a rigid rule. Keep the narrative clear and adapt section wording when needed.
 
+## Workflow Default
+
+1. Before opening a PR, draft/review the description with `$pr-flow-descriptions`.
+2. Choose the correct lead section for PR type:
+- defect/regression/security: `## Root cause`
+- feature/docs/chore/refactor: `## Context` or `## Goal`
+3. Remove all placeholders before submission; no empty bullets are allowed.
+4. In sequential reviewer-system flows, include an explicit approval pause statement before moving to the next PR.
+
 ## Section formatting standard
 
 1. Use real markdown line breaks and bullets.
