@@ -4,6 +4,7 @@ interface MemoryTimelineProps {
   nodes: TimelineNode[];
   selectedNodeId?: string;
   onSelectNode: (node: TimelineNode) => void;
+  compact?: boolean;
 }
 
 function verdictTone(verdict?: TimelineNode["verdict"]): string {
@@ -29,7 +30,7 @@ function verdictLabel(verdict?: TimelineNode["verdict"]): string {
   return "RUN";
 }
 
-export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode }: MemoryTimelineProps) {
+export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode, compact = false }: MemoryTimelineProps) {
   if (!nodes.length) {
     return (
       <section className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-muted)]">
@@ -39,11 +40,13 @@ export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode }: MemoryTi
   }
 
   return (
-    <section className="space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-4 shadow-[var(--shadow-soft)]">
+    <section className={`space-y-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] ${compact ? "p-3" : "p-4"} shadow-[var(--shadow-soft)]`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-[var(--text-strong)]">Memory Timeline</p>
-          <p className="text-xs text-[var(--text-muted)]">Track learning over runs and jump directly to the underlying context.</p>
+          {!compact ? (
+            <p className="text-xs text-[var(--text-muted)]">Track learning over runs and jump directly to the underlying context.</p>
+          ) : null}
         </div>
       </div>
 
@@ -79,9 +82,9 @@ export function MemoryTimeline({ nodes, selectedNodeId, onSelectNode }: MemoryTi
                       <div className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}>
                         {isMemoryNode ? `MEMORY v${node.memoryVersion ?? "-"}` : verdictLabel(node.verdict)}
                       </div>
-                      <p className="max-w-[210px] text-sm font-medium text-[var(--text-strong)]">
-                        {isMemoryNode ? `Approved by ${node.approvedBy ?? "unknown"}` : node.prTitle ?? "Run"}
-                      </p>
+                        <p className={`${compact ? "max-w-[180px]" : "max-w-[210px]"} text-sm font-medium text-[var(--text-strong)]`}>
+                          {isMemoryNode ? `Approved by ${node.approvedBy ?? "unknown"}` : node.prTitle ?? "Run"}
+                        </p>
                       <p className="text-xs text-[var(--text-muted)]">
                         {isMemoryNode
                           ? `${node.ruleCount ?? 0} rules`
