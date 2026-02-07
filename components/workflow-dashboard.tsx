@@ -15,6 +15,7 @@ import { DEMO_SCRIPT_ROUNDS, getRoundByKey, initialRoundKey } from "@/lib/demo-s
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
 import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
+import { canUseApplyFix } from "@/lib/round-guards";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useTimelineData } from "@/lib/use-timeline-data";
 import {
@@ -132,6 +133,12 @@ export function WorkflowDashboard() {
   const selectedRoundKey = uiState.roundKey ?? initialRoundKey();
   const selectedRound = getRoundByKey(selectedRoundKey) ?? DEMO_SCRIPT_ROUNDS[0];
   const walkthroughStep = uiState.walkthroughStep ?? "review";
+  const applyFixEnabled = canUseApplyFix({
+    viewMode,
+    allowApplyFixForRound: selectedRound.allowApplyFix,
+    applyFixUsedInRound: uiState.applyFixUsed ?? false,
+    hasBackendCapability: Boolean(pack && selectedPrNumber && selectedPullRequest?.head.ref)
+  });
 
   function setViewMode(nextMode: DemoViewMode) {
     dispatchUiState({ type: "DEMO_MODE_TOGGLED", viewMode: nextMode });
@@ -144,6 +151,9 @@ export function WorkflowDashboard() {
     }
 
     dispatchUiState({ type: "ROUND_SELECTED", roundKey });
+    setActiveTab("findings");
+    setCurrentResult(null);
+    setApplyFixFeedback(null);
 
     const memoryForRound = memoryVersions.find((memory) => memory.version === round.memoryVersionBefore);
     if (memoryForRound) {
@@ -327,6 +337,7 @@ export function WorkflowDashboard() {
       setRuns((previous) => [...previous, data.run]);
       setCurrentRun(data.run);
       setCurrentResult(data.result);
+      setSelectedTimelineNodeId(`run-${data.run.id}`);
       if ((uiState.viewMode ?? "demo") === "demo") {
         dispatchUiState({
           type: "STEP_ADVANCED",
@@ -462,6 +473,9 @@ export function WorkflowDashboard() {
         message: `Fix committed (${shortSha}). Diff refreshed.`,
         commitUrl: payload.commitUrl
       });
+      if ((uiState.viewMode ?? "demo") === "demo") {
+        dispatchUiState({ type: "APPLY_FIX_CONSUMED" });
+      }
 
       await selectPullRequest(selectedPrNumber);
     } catch (error) {
@@ -485,6 +499,10 @@ export function WorkflowDashboard() {
   }
 
   function handleSelectTimelineNode(nodeId: string) {
+    if ((uiState.viewMode ?? "demo") === "demo") {
+      return;
+    }
+
     setSelectedTimelineNodeId(nodeId);
     const node = timelineNodes.find((candidate) => candidate.id === nodeId);
     if (!node) {
@@ -686,7 +704,7 @@ export function WorkflowDashboard() {
             runs={runs}
             promoting={promoting}
             selectedPrUrl={selectedPrUrl}
-            canApplyFix={Boolean(pack && selectedPrNumber && selectedPullRequest?.head.ref)}
+            canApplyFix={applyFixEnabled}
             applyingFixIndex={applyingFixIndex}
             applyFixFeedback={applyFixFeedback}
             onSelectTab={setActiveTab}
