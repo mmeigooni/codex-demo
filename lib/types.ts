@@ -83,6 +83,14 @@ export type DemoViewMode = "demo" | "advanced";
 
 export type WalkthroughStep = "review" | "teach" | "prove";
 
+export type RuntimePhase = "review" | "recommend" | "apply";
+
+export interface RuntimePhaseState {
+  phases: RuntimePhase[];
+  current: RuntimePhase;
+  completed: RuntimePhase[];
+}
+
 export interface DemoRoundDefinition {
   key: string;
   pass: "A" | "B";
