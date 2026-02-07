@@ -296,17 +296,24 @@ export function ResultsPanel({
           {currentRun && currentResult ? (
             <section className="space-y-3">
               {isDemoMode ? (
-                <DemoFindingsList
-                  currentRun={currentRun}
-                  currentResult={currentResult}
-                  promoting={promoting}
-                  canApplyFix={canApplyFix}
-                  applyingFixIndex={applyingFixIndex}
-                  applyFixFeedback={applyFixFeedback}
-                  onProposeRule={onProposeRule}
-                  onJumpToFinding={onJumpToFinding}
-                  onApplyFix={onApplyFix}
-                />
+                <>
+                  <DemoFindingsList
+                    currentRun={currentRun}
+                    currentResult={currentResult}
+                    promoting={promoting}
+                    canApplyFix={canApplyFix}
+                    applyingFixIndex={applyingFixIndex}
+                    applyFixFeedback={applyFixFeedback}
+                    onProposeRule={onProposeRule}
+                    onJumpToFinding={onJumpToFinding}
+                    onApplyFix={onApplyFix}
+                  />
+                  {!canApplyFix ? (
+                    <p className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--text-muted)]">
+                      Apply Fix is limited to one successful commit in eligible demo rounds.
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <>
                   <header className="rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
