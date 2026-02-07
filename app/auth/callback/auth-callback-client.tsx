@@ -31,13 +31,25 @@ export function AuthCallbackClient() {
 
       const providerToken = data.session?.provider_token;
       if (providerToken) {
-        await fetch("/api/auth/github-token", {
+        const relayResponse = await fetch("/api/auth/github-token", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({ providerToken })
         });
+
+        if (!relayResponse.ok) {
+          let details = "Failed to persist GitHub token";
+          try {
+            const payload = (await relayResponse.json()) as { error?: string };
+            details = payload.error ?? details;
+          } catch {
+            // Ignore JSON parse failure and use default details message.
+          }
+          router.replace(`/?auth_error=${encodeURIComponent(details)}`);
+          return;
+        }
       }
 
       router.replace("/");
