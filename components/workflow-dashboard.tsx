@@ -7,14 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DemoModeShell } from "@/components/workflow/demo-mode-shell";
 import { DiffPanel } from "@/components/workflow/diff-panel";
 import { MemoryTimeline } from "@/components/workflow/memory-timeline";
-import { MorePacksDrawer } from "@/components/workflow/more-packs-drawer";
-import { PrContextPanel } from "@/components/workflow/pr-context-panel";
+import { PackSuggestionStrip } from "@/components/workflow/pack-suggestion-strip";
+import { PrFirstSelector } from "@/components/workflow/pr-first-selector";
 import { ResultsPanel } from "@/components/workflow/results-panel";
 import { TopBar } from "@/components/workflow/top-bar";
 import type { DashboardBootstrapResponse } from "@/lib/api-contracts";
 import { DEMO_SCRIPT_ROUNDS, getRoundByKey, initialRoundKey } from "@/lib/demo-script";
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
+import { recommendPackForPr } from "@/lib/pack-recommendation";
 import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
 import { canUseApplyFix } from "@/lib/round-guards";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -65,6 +66,11 @@ function memoryFromSuggestion(memory: MemoryVersion, suggestion: MemorySuggestio
   };
 }
 
+function extractTitleTags(title: string): string[] {
+  const matches = title.match(/\[([^\]]+)\]/g) ?? [];
+  return matches.map((tag) => tag.replace(/^\[|\]$/g, "").trim().toLowerCase()).filter(Boolean);
+}
+
 export function WorkflowDashboard() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -74,9 +80,11 @@ export function WorkflowDashboard() {
   const [session, setSession] = useState<SessionLike | null>(null);
 
   const [repo, setRepo] = useState(DEFAULT_DEMO_REPO);
-  const [pack, setPack] = useState<WorkflowPack | null>(null);
+  const [workflowPacks, setWorkflowPacks] = useState<WorkflowPack[]>([]);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [memoryVersions, setMemoryVersions] = useState<MemoryVersion[]>([]);
   const [currentMemoryId, setCurrentMemoryId] = useState<string | null>(null);
+  const [lastSuggestedPrUrl, setLastSuggestedPrUrl] = useState<string | null>(null);
 
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
@@ -106,9 +114,25 @@ export function WorkflowDashboard() {
   const runAbortRef = useRef<AbortController | null>(null);
   const runPhaseTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
+  const selectedPack = useMemo(
+    () =>
+      workflowPacks.find((candidate) => candidate.id === selectedPackId) ??
+      workflowPacks.find((candidate) => candidate.status === "active") ??
+      null,
+    [workflowPacks, selectedPackId]
+  );
+
+  const scopedMemoryVersions = useMemo(
+    () =>
+      selectedPack
+        ? memoryVersions.filter((memory) => memory.workflow_pack_id === selectedPack.id)
+        : memoryVersions,
+    [memoryVersions, selectedPack]
+  );
+
   const currentMemory = useMemo(
-    () => memoryVersions.find((memory) => memory.id === currentMemoryId) ?? memoryVersions.at(-1) ?? null,
-    [memoryVersions, currentMemoryId]
+    () => scopedMemoryVersions.find((memory) => memory.id === currentMemoryId) ?? scopedMemoryVersions.at(-1) ?? null,
+    [scopedMemoryVersions, currentMemoryId]
   );
 
   const userName =
@@ -119,13 +143,26 @@ export function WorkflowDashboard() {
 
   const repoMessage = repoValidationMessage(repo);
 
+  const packRecommendation = useMemo(
+    () =>
+      recommendPackForPr({
+        packs: workflowPacks,
+        diffPaths: extractDiffFileSummaries(prDiff).map((file) => file.path),
+        titleTags: extractTitleTags(selectedPrTitle)
+      }),
+    [workflowPacks, prDiff, selectedPrTitle]
+  );
+
+  const selectedPackLocked = selectedPack?.status === "coming_soon";
   const canRun = canRunAnalysis(
     uiState,
-    Boolean(pack && currentMemory && selectedPrUrl && prDiff && !loadingBootstrap && !loadingDiff)
+    Boolean(selectedPack && !selectedPackLocked && currentMemory && selectedPrUrl && prDiff && !loadingBootstrap && !loadingDiff)
   );
 
   const runLabel = running ? "Running..." : currentRun ? "Re-run" : "Run";
-  const runHelper = `Pack: ${pack?.name ?? "N/A"} · Memory v${currentMemory?.version ?? "-"}`;
+  const runHelper = selectedPackLocked
+    ? `Pack: ${selectedPack?.name ?? "N/A"} is coming soon`
+    : `Pack: ${selectedPack?.name ?? "N/A"} · Memory v${currentMemory?.version ?? "-"}`;
   const timelineNodes = useTimelineData(memoryVersions, runs);
   const selectedPullRequest = useMemo(
     () => pullRequests.find((pullRequest) => pullRequest.number === selectedPrNumber) ?? null,
@@ -139,7 +176,7 @@ export function WorkflowDashboard() {
     viewMode,
     allowApplyFixForRound: selectedRound.allowApplyFix,
     applyFixUsedInRound: uiState.applyFixUsed ?? false,
-    hasBackendCapability: Boolean(pack && selectedPrNumber && selectedPullRequest?.head.ref)
+    hasBackendCapability: Boolean(selectedPack && selectedPrNumber && selectedPullRequest?.head.ref)
   });
 
   function setViewMode(nextMode: DemoViewMode) {
@@ -156,15 +193,6 @@ export function WorkflowDashboard() {
     setActiveTab("findings");
     setCurrentResult(null);
     setApplyFixFeedback(null);
-
-    const memoryForRound = memoryVersions.find((memory) => memory.version === round.memoryVersionBefore);
-    if (memoryForRound) {
-      setCurrentMemoryId(memoryForRound.id);
-    }
-
-    if (session) {
-      void selectPullRequest(round.prNumber);
-    }
   }
 
   async function loadBootstrap() {
@@ -180,10 +208,15 @@ export function WorkflowDashboard() {
         activePack?: WorkflowPack;
       };
 
-      const nextPacks = payload.workflowPacks ?? [];
+      const nextPacks = payload.workflowPacks?.length
+        ? payload.workflowPacks
+        : payload.activePack
+          ? [payload.activePack]
+          : [];
       const resolvedPack = nextPacks.find((candidate) => candidate.id === payload.defaultPackId) ?? payload.activePack ?? null;
 
-      setPack(resolvedPack);
+      setWorkflowPacks(nextPacks);
+      setSelectedPackId(resolvedPack?.id ?? null);
       setMemoryVersions(payload.memoryVersions);
       setCurrentMemoryId(payload.memoryVersions.at(-1)?.id ?? null);
       setRuns(payload.runs);
@@ -323,7 +356,7 @@ export function WorkflowDashboard() {
   }
 
   async function runAnalysis() {
-    if (!pack || !currentMemory || !selectedPrUrl || !prDiff || running) {
+    if (!selectedPack || selectedPack.status === "coming_soon" || !currentMemory || !selectedPrUrl || !prDiff || running) {
       return;
     }
 
@@ -351,7 +384,7 @@ export function WorkflowDashboard() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          workflowPackId: pack.id,
+          workflowPackId: selectedPack.id,
           memoryVersionId: currentMemory.id,
           prUrl: selectedPrUrl,
           prTitle: selectedPrTitle,
@@ -399,7 +432,7 @@ export function WorkflowDashboard() {
   }
 
   async function proposeRule() {
-    if (!pack || !currentMemory || !currentRun || !currentResult?.memory_suggestions?.[0]) {
+    if (!selectedPack || !currentMemory || !currentRun || !currentResult?.memory_suggestions?.[0]) {
       return;
     }
 
@@ -414,7 +447,7 @@ export function WorkflowDashboard() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          workflowPackId: pack.id,
+          workflowPackId: selectedPack.id,
           sourceRunId: currentRun.id,
           approvedBy: userName,
           newContent: proposed.newContent,
@@ -465,7 +498,7 @@ export function WorkflowDashboard() {
   }
 
   async function applyFix(finding: Finding, index: number) {
-    if (!pack || !selectedPrNumber || !selectedPullRequest?.head.ref) {
+    if (!selectedPack || !selectedPrNumber || !selectedPullRequest?.head.ref) {
       setApplyFixFeedback({
         index,
         type: "error",
@@ -484,7 +517,7 @@ export function WorkflowDashboard() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          workflowPackId: pack.id,
+          workflowPackId: selectedPack.id,
           repo: normalizeRepoInput(repo),
           pullNumber: selectedPrNumber,
           branch: selectedPullRequest.head.ref,
@@ -649,15 +682,32 @@ export function WorkflowDashboard() {
   }, [selectedRoundKey, viewMode]);
 
   useEffect(() => {
-    const memoryForRound = memoryVersions.find((memory) => memory.version === selectedRound.memoryVersionBefore);
-    if (memoryForRound && currentMemoryId !== memoryForRound.id) {
-      setCurrentMemoryId(memoryForRound.id);
+    if (!selectedPack) {
+      return;
     }
 
-    if (session && selectedPrNumber !== selectedRound.prNumber) {
-      void selectPullRequest(selectedRound.prNumber);
+    const latestMemoryForPack = memoryVersions
+      .filter((memory) => memory.workflow_pack_id === selectedPack.id)
+      .at(-1);
+
+    if (latestMemoryForPack && currentMemoryId !== latestMemoryForPack.id) {
+      setCurrentMemoryId(latestMemoryForPack.id);
     }
-  }, [memoryVersions, selectedRound, currentMemoryId, session, selectedPrNumber]);
+  }, [memoryVersions, selectedPack, currentMemoryId]);
+
+  useEffect(() => {
+    if (!selectedPrUrl) {
+      setLastSuggestedPrUrl(null);
+      return;
+    }
+
+    if (!packRecommendation.suggestedPackId || lastSuggestedPrUrl === selectedPrUrl) {
+      return;
+    }
+
+    setSelectedPackId(packRecommendation.suggestedPackId);
+    setLastSuggestedPrUrl(selectedPrUrl);
+  }, [packRecommendation.suggestedPackId, selectedPrUrl, lastSuggestedPrUrl]);
 
   useEffect(() => {
     const normalizedRepo = normalizeRepoInput(repo);
@@ -695,10 +745,10 @@ export function WorkflowDashboard() {
     <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Pull Request Context</CardTitle>
+          <CardTitle>PR-First Workflow</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <PrContextPanel
+          <PrFirstSelector
             repo={repo}
             onRepoChange={setRepo}
             repoValidationMessage={repoMessage}
@@ -718,6 +768,15 @@ export function WorkflowDashboard() {
             onSelectPullRequest={(pullNumber) => {
               void selectPullRequest(pullNumber);
             }}
+          />
+
+          <PackSuggestionStrip
+            packs={workflowPacks}
+            selectedPackId={selectedPack?.id ?? null}
+            suggestedPackId={packRecommendation.suggestedPackId}
+            alternatives={packRecommendation.alternatives}
+            lockReason={packRecommendation.lockReason}
+            onSelectPack={setSelectedPackId}
           />
 
           <div className="space-y-2">
@@ -748,7 +807,7 @@ export function WorkflowDashboard() {
             currentResult={currentResult}
             currentMemory={currentMemory}
             currentMemoryId={currentMemoryId}
-            memoryVersions={memoryVersions}
+            memoryVersions={scopedMemoryVersions}
             runs={runs}
             promoting={promoting}
             selectedPrUrl={selectedPrUrl}
@@ -776,7 +835,7 @@ export function WorkflowDashboard() {
     <main className="min-h-screen px-4 py-4 md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
         <TopBar
-          packName={pack?.name ?? "Workflow Pack"}
+          packName={selectedPack?.name ?? "Workflow Pack"}
           repo={normalizeRepoInput(repo)}
           selectedPrLabel={selectedPrTitle || "No PR selected"}
           runLabel={runLabel}
@@ -832,7 +891,6 @@ export function WorkflowDashboard() {
           </>
         )}
 
-        <MorePacksDrawer />
       </div>
     </main>
   );
