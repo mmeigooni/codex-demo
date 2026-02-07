@@ -11,6 +11,7 @@ import { MorePacksDrawer } from "@/components/workflow/more-packs-drawer";
 import { PrContextPanel } from "@/components/workflow/pr-context-panel";
 import { ResultsPanel } from "@/components/workflow/results-panel";
 import { TopBar } from "@/components/workflow/top-bar";
+import type { DashboardBootstrapResponse } from "@/lib/api-contracts";
 import { DEMO_SCRIPT_ROUNDS, getRoundByKey, initialRoundKey } from "@/lib/demo-script";
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
@@ -174,17 +175,19 @@ export function WorkflowDashboard() {
         throw new Error("Could not load bootstrap data");
       }
 
-      const data = (await response.json()) as {
-        activePack: WorkflowPack;
-        memoryVersions: MemoryVersion[];
-        runs: RunRecord[];
+      const payload = (await response.json()) as DashboardBootstrapResponse & {
+        // Transitional fallback for legacy local data while wave migration is in progress.
+        activePack?: WorkflowPack;
       };
 
-      setPack(data.activePack);
-      setMemoryVersions(data.memoryVersions);
-      setCurrentMemoryId(data.memoryVersions.at(-1)?.id ?? null);
-      setRuns(data.runs);
-      setCurrentRun(data.runs.at(-1) ?? null);
+      const nextPacks = payload.workflowPacks ?? [];
+      const resolvedPack = nextPacks.find((candidate) => candidate.id === payload.defaultPackId) ?? payload.activePack ?? null;
+
+      setPack(resolvedPack);
+      setMemoryVersions(payload.memoryVersions);
+      setCurrentMemoryId(payload.memoryVersions.at(-1)?.id ?? null);
+      setRuns(payload.runs);
+      setCurrentRun(payload.runs.at(-1) ?? null);
     } catch (error) {
       dispatchUiState({
         type: "REPO_LOAD_ERROR",

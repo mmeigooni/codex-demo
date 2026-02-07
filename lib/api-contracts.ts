@@ -32,7 +32,8 @@ export interface PromoteMemoryResponse {
 }
 
 export interface DashboardBootstrapResponse {
-  activePack: WorkflowPack;
+  workflowPacks: WorkflowPack[];
+  defaultPackId: string;
   memoryVersions: MemoryVersion[];
   runs: RunRecord[];
 }
