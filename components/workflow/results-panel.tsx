@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type JSX } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,48 @@ function toIssueUrl(prUrl: string, finding: Finding): string {
   const title = encodeURIComponent(`[Review] ${finding.title}`);
   const body = encodeURIComponent(findingToMarkdownComment(finding));
   return `${repositoryUrl}/issues/new?title=${title}&body=${body}`;
+}
+
+function isDiffLine(line: string): boolean {
+  return (
+    /^(\+\+\+|---|@@|diff --git|index )/.test(line) ||
+    (/^\+/.test(line) && !/^\+\+\+/.test(line)) ||
+    (/^-/.test(line) && !/^---/.test(line))
+  );
+}
+
+function renderSuggestedFix(suggestedFix: string | null): JSX.Element {
+  if (!suggestedFix) {
+    return <p className="mt-2 text-sm text-[var(--text-muted)]">No suggested fix provided.</p>;
+  }
+
+  const lines = suggestedFix.split("\n");
+  const hasDiffMarkers = lines.some((line) => isDiffLine(line));
+
+  return (
+    <div className="mt-2 space-y-1">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">
+        {hasDiffMarkers ? "Suggested diff" : "Suggested fix"}
+      </p>
+      <pre className="max-h-[220px] overflow-auto rounded-[var(--radius-input)] border border-slate-800 bg-[#07121f] p-3 text-xs text-slate-100">
+        {lines.map((line, index) => {
+          const toneClass = /^\+/.test(line) && !/^\+\+\+/.test(line)
+            ? "text-emerald-300"
+            : /^-/.test(line) && !/^---/.test(line)
+              ? "text-rose-300"
+              : /^@@/.test(line)
+                ? "text-sky-300"
+                : "text-slate-200";
+
+          return (
+            <span key={`${line}-${index}`} className={`block font-mono ${toneClass}`}>
+              {line || " "}
+            </span>
+          );
+        })}
+      </pre>
+    </div>
+  );
 }
 
 function PhaseStepper({ phase }: { phase?: WorkflowUiState["runPhase"] }) {
@@ -244,7 +286,19 @@ export function ResultsPanel({
                         {finding.file}:{finding.line}
                       </p>
                       <p className="mt-1 text-sm text-[var(--text-muted)]">Why: {finding.description}</p>
-                      <p className="text-sm text-[var(--text-muted)]">Fix: {finding.suggested_fix ?? "No suggested fix provided."}</p>
+                      <div className="mt-2">
+                        {finding.memory_reference ? (
+                          <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
+                            Caught by memory rule: {finding.memory_reference}
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">
+                            Heuristic detection
+                          </span>
+                        )}
+                      </div>
+
+                      {renderSuggestedFix(finding.suggested_fix)}
 
                       {expanded ? (
                         <div className="mt-2 rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 text-xs text-[var(--text-muted)]">
