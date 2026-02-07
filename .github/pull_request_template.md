@@ -2,17 +2,18 @@
 <!--
 Use this section for bug fixes, regressions, and security patches.
 If there is no defect root cause (feature/docs/chore/refactor), rename this heading to "## Context" or "## Goal".
+Do not leave placeholder bullets. Replace with 1-3 concrete bullets.
 -->
-- 
+<!-- Add concrete bullets here. -->
 
 ## Changes
-- 
+<!-- Add concrete change bullets grouped by scope (files/modules/behavior). -->
 
 ## Validation
-- 
+<!-- List exact commands run and outcome (or explicitly "not run" with reason). -->
 
 ## Risks and follow-ups (optional)
-- 
+<!-- Optional. Remove this section if there are no meaningful risks/follow-ups. -->
 
 ---
 
