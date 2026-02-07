@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { StoryModeToggle } from "@/components/workflow/story-mode-toggle";
+import type { StoryMode } from "@/lib/brain-story-state";
 
 interface SessionLike {
   user: {
@@ -23,6 +25,8 @@ interface TopBarProps {
   onRun: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  storyMode?: StoryMode;
+  onStoryModeChange?: (mode: StoryMode) => void;
 }
 
 export function TopBar({
@@ -36,7 +40,9 @@ export function TopBar({
   userName,
   onRun,
   onSignIn,
-  onSignOut
+  onSignOut,
+  storyMode,
+  onStoryModeChange
 }: TopBarProps) {
   return (
     <header className="sticky top-4 z-40 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] px-5 py-4 shadow-[var(--shadow-soft)] backdrop-blur">
@@ -56,6 +62,7 @@ export function TopBar({
         </div>
 
         <div className="flex items-center gap-2">
+          {storyMode && onStoryModeChange ? <StoryModeToggle mode={storyMode} onChange={onStoryModeChange} /> : null}
           {session ? (
             <>
               {session.user.user_metadata?.avatar_url ? (
