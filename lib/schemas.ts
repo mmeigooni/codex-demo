@@ -48,6 +48,22 @@ export const promoteMemorySchema = z.object({
   addedRules: z.array(addedRuleGroupSchema).min(1)
 });
 
+export const applyFixFindingSchema = z.object({
+  file: z.string().min(1),
+  line: z.number().int().nonnegative(),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  suggested_fix: z.string().nullable().optional()
+});
+
+export const applyFixRequestSchema = z.object({
+  workflowPackId: z.string().uuid(),
+  repo: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "Use owner/name format"),
+  pullNumber: z.number().int().positive(),
+  branch: z.string().min(1),
+  finding: applyFixFindingSchema
+});
+
 export const openAiOutputJsonSchema = {
   type: "object",
   additionalProperties: false,
