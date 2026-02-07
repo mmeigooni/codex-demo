@@ -7,10 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DemoModeShell } from "@/components/workflow/demo-mode-shell";
 import { DiffPanel } from "@/components/workflow/diff-panel";
 import { MemoryTimeline } from "@/components/workflow/memory-timeline";
+import { MemoryPanel } from "@/components/workflow/memory-panel";
 import { PackSuggestionStrip } from "@/components/workflow/pack-suggestion-strip";
 import { PrFirstSelector } from "@/components/workflow/pr-first-selector";
 import { ResultsPanel } from "@/components/workflow/results-panel";
+import { RunDetailsPanel } from "@/components/workflow/run-details-panel";
 import { TopBar } from "@/components/workflow/top-bar";
+import { UnifiedDetailsDrawer } from "@/components/workflow/unified-details-drawer";
 import type { DashboardBootstrapResponse } from "@/lib/api-contracts";
 import { DEMO_SCRIPT_ROUNDS, getRoundByKey, initialRoundKey } from "@/lib/demo-script";
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
@@ -51,6 +54,8 @@ type SessionLike = {
   };
 };
 
+type DetailsTab = "diff" | "timeline" | "memory" | "run_details";
+
 function memoryFromSuggestion(memory: MemoryVersion, suggestion: MemorySuggestion): { newContent: string; section: string } {
   const section = suggestion.category;
   const lines = suggestion.content
@@ -77,6 +82,8 @@ export function WorkflowDashboard() {
 
   const [uiState, dispatchUiState] = useReducer(reduceWorkflowUiState, initialWorkflowUiState);
   const [activeTab, setActiveTab] = useState<RightPanelTab>("findings");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState<DetailsTab>("diff");
 
   const [session, setSession] = useState<SessionLike | null>(null);
 
@@ -580,10 +587,6 @@ export function WorkflowDashboard() {
   }
 
   function handleSelectTimelineNode(nodeId: string) {
-    if ((uiState.viewMode ?? "demo") === "demo") {
-      return;
-    }
-
     setSelectedTimelineNodeId(nodeId);
     const node = timelineNodes.find((candidate) => candidate.id === nodeId);
     if (!node) {
@@ -681,6 +684,11 @@ export function WorkflowDashboard() {
     if (nextRoundKey) {
       dispatchUiState({ type: "ROUND_SELECTED", roundKey: nextRoundKey });
     }
+
+    const storedDetailsTab = window.sessionStorage.getItem("workflow:details-tab");
+    if (storedDetailsTab === "diff" || storedDetailsTab === "timeline" || storedDetailsTab === "memory" || storedDetailsTab === "run_details") {
+      setDetailsTab(storedDetailsTab);
+    }
   }, []);
 
   useEffect(() => {
@@ -692,6 +700,10 @@ export function WorkflowDashboard() {
     url.searchParams.set("round", selectedRoundKey);
     window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
   }, [selectedRoundKey, viewMode]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem("workflow:details-tab", detailsTab);
+  }, [detailsTab]);
 
   useEffect(() => {
     if (!selectedPack) {
@@ -790,20 +802,6 @@ export function WorkflowDashboard() {
             lockReason={packRecommendation.lockReason}
             onSelectPack={setSelectedPackId}
           />
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Diff preview</label>
-              <p className="text-xs text-[var(--text-muted)]">Jump from findings to exact lines</p>
-            </div>
-
-            <DiffPanel
-              diffText={prDiff}
-              loading={loadingDiff}
-              jumpAnchor={diffJumpAnchor}
-              onJumpHandled={() => setDiffJumpAnchor(null)}
-            />
-          </div>
         </CardContent>
       </Card>
 
@@ -875,6 +873,61 @@ export function WorkflowDashboard() {
           }}
         />
 
+        <UnifiedDetailsDrawer
+          open={detailsOpen}
+          activeTab={detailsTab}
+          onToggle={() => setDetailsOpen((value) => !value)}
+          onSelectTab={(tabId) => {
+            if (tabId === "diff" || tabId === "timeline" || tabId === "memory" || tabId === "run_details") {
+              setDetailsTab(tabId);
+            }
+          }}
+          tabs={[
+            {
+              id: "diff",
+              label: "Diff",
+              content: (
+                <DiffPanel
+                  diffText={prDiff}
+                  loading={loadingDiff}
+                  jumpAnchor={diffJumpAnchor}
+                  onJumpHandled={() => setDiffJumpAnchor(null)}
+                  compact
+                />
+              )
+            },
+            {
+              id: "timeline",
+              label: "Timeline",
+              content: (
+                <MemoryTimeline
+                  nodes={timelineNodes}
+                  selectedNodeId={selectedTimelineNodeId ?? undefined}
+                  onSelectNode={(node) => handleSelectTimelineNode(node.id)}
+                  compact
+                />
+              )
+            },
+            {
+              id: "memory",
+              label: "Memory",
+              content: (
+                <MemoryPanel
+                  memoryVersions={scopedMemoryVersions}
+                  currentMemory={currentMemory}
+                  currentMemoryId={currentMemoryId}
+                  onChangeMemory={setCurrentMemoryId}
+                />
+              )
+            },
+            {
+              id: "run_details",
+              label: "Run details",
+              content: <RunDetailsPanel currentRun={currentRun} runs={runs} />
+            }
+          ]}
+        />
+
         {viewMode === "demo" ? (
           <DemoModeShell
             selectedRound={selectedRound}
@@ -890,11 +943,6 @@ export function WorkflowDashboard() {
                 Back to demo mode
               </Button>
             </div>
-            <MemoryTimeline
-              nodes={timelineNodes}
-              selectedNodeId={selectedTimelineNodeId ?? undefined}
-              onSelectNode={(node) => handleSelectTimelineNode(node.id)}
-            />
             {reviewPanels}
           </>
         )}
