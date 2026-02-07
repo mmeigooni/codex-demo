@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DemoModeShell } from "@/components/workflow/demo-mode-shell";
 import { DiffPanel } from "@/components/workflow/diff-panel";
 import { MemoryTimeline } from "@/components/workflow/memory-timeline";
 import { MorePacksDrawer } from "@/components/workflow/more-packs-drawer";
 import { PrContextPanel } from "@/components/workflow/pr-context-panel";
 import { ResultsPanel } from "@/components/workflow/results-panel";
 import { TopBar } from "@/components/workflow/top-bar";
+import { DEMO_SCRIPT_ROUNDS, getRoundByKey, initialRoundKey } from "@/lib/demo-script";
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
 import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
@@ -20,6 +23,7 @@ import {
   reduceWorkflowUiState
 } from "@/lib/workflow-ui-state";
 import type {
+  DemoViewMode,
   DiffLineAnchor,
   Finding,
   GitHubPullRequest,
@@ -124,6 +128,32 @@ export function WorkflowDashboard() {
     () => pullRequests.find((pullRequest) => pullRequest.number === selectedPrNumber) ?? null,
     [pullRequests, selectedPrNumber]
   );
+  const viewMode: DemoViewMode = uiState.viewMode ?? "demo";
+  const selectedRoundKey = uiState.roundKey ?? initialRoundKey();
+  const selectedRound = getRoundByKey(selectedRoundKey) ?? DEMO_SCRIPT_ROUNDS[0];
+  const walkthroughStep = uiState.walkthroughStep ?? "review";
+
+  function setViewMode(nextMode: DemoViewMode) {
+    dispatchUiState({ type: "DEMO_MODE_TOGGLED", viewMode: nextMode });
+  }
+
+  function handleSelectRound(roundKey: string) {
+    const round = getRoundByKey(roundKey);
+    if (!round) {
+      return;
+    }
+
+    dispatchUiState({ type: "ROUND_SELECTED", roundKey });
+
+    const memoryForRound = memoryVersions.find((memory) => memory.version === round.memoryVersionBefore);
+    if (memoryForRound) {
+      setCurrentMemoryId(memoryForRound.id);
+    }
+
+    if (session) {
+      void selectPullRequest(round.prNumber);
+    }
+  }
 
   async function loadBootstrap() {
     setLoadingBootstrap(true);
@@ -297,6 +327,12 @@ export function WorkflowDashboard() {
       setRuns((previous) => [...previous, data.run]);
       setCurrentRun(data.run);
       setCurrentResult(data.result);
+      if ((uiState.viewMode ?? "demo") === "demo") {
+        dispatchUiState({
+          type: "STEP_ADVANCED",
+          step: data.result.memory_suggestions.length ? "teach" : "prove"
+        });
+      }
       dispatchUiState({ type: "RUN_SUCCESS" });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -356,6 +392,9 @@ export function WorkflowDashboard() {
       setMemoryVersions((previous) => [...previous, payload.memoryVersion]);
       setCurrentMemoryId(payload.memoryVersion.id);
       setActiveTab("memory");
+      if ((uiState.viewMode ?? "demo") === "demo") {
+        dispatchUiState({ type: "STEP_ADVANCED", step: "prove" });
+      }
     } catch (error) {
       dispatchUiState({
         type: "RUN_ERROR",
@@ -513,6 +552,48 @@ export function WorkflowDashboard() {
   }, [supabase]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const modeParam = params.get("mode");
+    const roundParam = params.get("round");
+    const storedMode = window.localStorage.getItem("workflow:view-mode");
+    const storedRound = window.localStorage.getItem("workflow:round-key");
+
+    const nextMode: DemoViewMode = modeParam === "advanced" || modeParam === "demo"
+      ? modeParam
+      : storedMode === "advanced" || storedMode === "demo"
+        ? storedMode
+        : "demo";
+
+    const nextRoundKey = getRoundByKey(roundParam) ? roundParam : getRoundByKey(storedRound) ? storedRound : initialRoundKey();
+
+    dispatchUiState({ type: "DEMO_MODE_TOGGLED", viewMode: nextMode });
+    if (nextRoundKey) {
+      dispatchUiState({ type: "ROUND_SELECTED", roundKey: nextRoundKey });
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("workflow:view-mode", viewMode);
+    window.localStorage.setItem("workflow:round-key", selectedRoundKey);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", viewMode);
+    url.searchParams.set("round", selectedRoundKey);
+    window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
+  }, [selectedRoundKey, viewMode]);
+
+  useEffect(() => {
+    const memoryForRound = memoryVersions.find((memory) => memory.version === selectedRound.memoryVersionBefore);
+    if (memoryForRound && currentMemoryId !== memoryForRound.id) {
+      setCurrentMemoryId(memoryForRound.id);
+    }
+
+    if (session && selectedPrNumber !== selectedRound.prNumber) {
+      void selectPullRequest(selectedRound.prNumber);
+    }
+  }, [memoryVersions, selectedRound, currentMemoryId, session, selectedPrNumber]);
+
+  useEffect(() => {
     const normalizedRepo = normalizeRepoInput(repo);
     if (!shouldAutoloadRepo(normalizedRepo, session ? "session" : undefined)) {
       return;
@@ -543,6 +624,87 @@ export function WorkflowDashboard() {
       setSelectedTimelineNodeId(timelineNodes.at(-1)?.id ?? null);
     }
   }, [timelineNodes, selectedTimelineNodeId]);
+
+  const reviewPanels = (
+    <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Pull Request Context</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PrContextPanel
+            repo={repo}
+            onRepoChange={setRepo}
+            repoValidationMessage={repoMessage}
+            hasGithubAuth={Boolean(session)}
+            pullRequests={pullRequests}
+            loadingPrs={loadingPrs}
+            loadingDiff={loadingDiff}
+            selectedPrNumber={selectedPrNumber}
+            selectedPrTitle={selectedPrTitle}
+            selectedPrUrl={selectedPrUrl}
+            onRefreshPullRequests={() => {
+              const normalizedRepo = normalizeRepoInput(repo);
+              if (!repoValidationMessage(normalizedRepo)) {
+                void loadPullRequests(normalizedRepo);
+              }
+            }}
+            onSelectPullRequest={(pullNumber) => {
+              void selectPullRequest(pullNumber);
+            }}
+          />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Diff preview</label>
+              <p className="text-xs text-[var(--text-muted)]">Jump from findings to exact lines</p>
+            </div>
+
+            <DiffPanel
+              diffText={prDiff}
+              loading={loadingDiff}
+              jumpAnchor={diffJumpAnchor}
+              onJumpHandled={() => setDiffJumpAnchor(null)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Review Engine</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResultsPanel
+            uiState={uiState}
+            activeTab={activeTab}
+            currentRun={currentRun}
+            currentResult={currentResult}
+            currentMemory={currentMemory}
+            currentMemoryId={currentMemoryId}
+            memoryVersions={memoryVersions}
+            runs={runs}
+            promoting={promoting}
+            selectedPrUrl={selectedPrUrl}
+            canApplyFix={Boolean(pack && selectedPrNumber && selectedPullRequest?.head.ref)}
+            applyingFixIndex={applyingFixIndex}
+            applyFixFeedback={applyFixFeedback}
+            onSelectTab={setActiveTab}
+            onChangeMemory={setCurrentMemoryId}
+            onProposeRule={() => {
+              void proposeRule();
+            }}
+            onJumpToFinding={handleJumpToFinding}
+            onApplyFix={(finding, index) => {
+              void applyFix(finding, index);
+            }}
+            onCancelRun={cancelRun}
+            onRecoverError={() => dispatchUiState({ type: "CLEAR_ERROR" })}
+          />
+        </CardContent>
+      </Card>
+    </section>
+  );
 
   return (
     <main className="min-h-screen px-4 py-4 md:px-6 md:py-6">
@@ -576,90 +738,33 @@ export function WorkflowDashboard() {
           }}
         />
 
-        <MemoryTimeline
-          nodes={timelineNodes}
-          selectedNodeId={selectedTimelineNodeId ?? undefined}
-          onSelectNode={(node) => handleSelectTimelineNode(node.id)}
-        />
-
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pull Request Context</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <PrContextPanel
-                repo={repo}
-                onRepoChange={setRepo}
-                repoValidationMessage={repoMessage}
-                hasGithubAuth={Boolean(session)}
-                pullRequests={pullRequests}
-                loadingPrs={loadingPrs}
-                loadingDiff={loadingDiff}
-                selectedPrNumber={selectedPrNumber}
-                selectedPrTitle={selectedPrTitle}
-                selectedPrUrl={selectedPrUrl}
-                onRefreshPullRequests={() => {
-                  const normalizedRepo = normalizeRepoInput(repo);
-                  if (!repoValidationMessage(normalizedRepo)) {
-                    void loadPullRequests(normalizedRepo);
-                  }
-                }}
-                onSelectPullRequest={(pullNumber) => {
-                  void selectPullRequest(pullNumber);
-                }}
-              />
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Diff preview</label>
-                  <p className="text-xs text-[var(--text-muted)]">Jump from findings to exact lines</p>
-                </div>
-
-                <DiffPanel
-                  diffText={prDiff}
-                  loading={loadingDiff}
-                  jumpAnchor={diffJumpAnchor}
-                  onJumpHandled={() => setDiffJumpAnchor(null)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Review Engine</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResultsPanel
-                uiState={uiState}
-                activeTab={activeTab}
-                currentRun={currentRun}
-                currentResult={currentResult}
-                currentMemory={currentMemory}
-                currentMemoryId={currentMemoryId}
-                memoryVersions={memoryVersions}
-                runs={runs}
-                promoting={promoting}
-                selectedPrUrl={selectedPrUrl}
-                canApplyFix={Boolean(pack && selectedPrNumber && selectedPullRequest?.head.ref)}
-                applyingFixIndex={applyingFixIndex}
-                applyFixFeedback={applyFixFeedback}
-                onSelectTab={setActiveTab}
-                onChangeMemory={setCurrentMemoryId}
-                onProposeRule={() => {
-                  void proposeRule();
-                }}
-                onJumpToFinding={handleJumpToFinding}
-                onApplyFix={(finding, index) => {
-                  void applyFix(finding, index);
-                }}
-                onCancelRun={cancelRun}
-                onRecoverError={() => dispatchUiState({ type: "CLEAR_ERROR" })}
-              />
-            </CardContent>
-          </Card>
-        </section>
+        {viewMode === "demo" ? (
+          <DemoModeShell
+            rounds={DEMO_SCRIPT_ROUNDS}
+            selectedRoundKey={selectedRoundKey}
+            currentStep={walkthroughStep}
+            objective={selectedRound.objective}
+            expectedRecommendation={selectedRound.expectedRecommendation}
+            onSelectRound={handleSelectRound}
+            onToggleMode={() => setViewMode("advanced")}
+          >
+            {reviewPanels}
+          </DemoModeShell>
+        ) : (
+          <>
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={() => setViewMode("demo")}>
+                Back to demo mode
+              </Button>
+            </div>
+            <MemoryTimeline
+              nodes={timelineNodes}
+              selectedNodeId={selectedTimelineNodeId ?? undefined}
+              onSelectNode={(node) => handleSelectTimelineNode(node.id)}
+            />
+            {reviewPanels}
+          </>
+        )}
 
         <MorePacksDrawer />
       </div>
