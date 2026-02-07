@@ -9,6 +9,28 @@ The reviewer system is designed to:
 - improve readability and maintainability over time,
 - provide consistent, auditable review outputs.
 
+## Quickstart (Reviewer System)
+1. Confirm required reviewer skills in `docs/reviewer-system/reviewer-manifest.md`.
+2. Run the installation and verification commands from the manifest.
+3. Execute the reviewer cycle using:
+- prompts in `docs/reviewer-system/prompts/`,
+- contracts in `docs/reviewer-system/templates/`,
+- workflow steps in `docs/reviewer-system/RUNBOOK.md`.
+4. Before any reviewer-system PR merge, run:
+- `npm run typecheck`
+- `npm run test:run`
+- `npm run build`
+
+For full application onboarding and system architecture, use the canonical root README: `../../README.md`.
+
+## Architecture At a Glance (Reviewer System)
+The reviewer system operates as a process pipeline:
+1. Manifest and policy define trusted skills, scope, and role ownership.
+2. Specialist prompt pack produces focused findings per domain.
+3. Finding/report contracts normalize outputs into consistent artifacts.
+4. Two-pass runbook executes initial review and post-fix verification.
+5. Baseline and verification reports capture quality posture and unresolved items.
+
 ## Quality Standard
 Reviews are balanced across four equal axes:
 - maintainability,
