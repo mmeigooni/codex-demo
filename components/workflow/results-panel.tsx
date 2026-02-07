@@ -3,6 +3,7 @@ import { useMemo, useState, type JSX } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DemoFindingsList } from "@/components/workflow/demo-findings-list";
+import type { BrainStoryState, StoryMode } from "@/lib/brain-story-state";
 import { extractDiffFileSummaries } from "@/lib/diff-anchors";
 import { findingToMarkdownComment, mergeRecommendationLabel, summarizeFindings } from "@/lib/results-summary";
 import type { Finding, MemoryVersion, RightPanelTab, RunRecord, RunResult, WorkflowUiState } from "@/lib/types";
@@ -33,6 +34,8 @@ interface ResultsPanelProps {
   onApplyFix?: (finding: Finding, index: number) => void;
   onCancelRun: () => void;
   onRecoverError: () => void;
+  storyMode?: StoryMode;
+  storyState?: BrainStoryState | null;
 }
 
 function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "info" | "neutral" {
@@ -132,6 +135,22 @@ function PhaseStepper({ phase }: { phase?: WorkflowUiState["runPhase"] }) {
   );
 }
 
+function salienceNarrative(state: BrainStoryState | null): string {
+  if (!state) {
+    return "Signals are available but story salience is not yet derived.";
+  }
+
+  if (state.salience === "high") {
+    return "High-salience risk surfaced. This context should be addressed before merge to prevent repeated failure patterns.";
+  }
+
+  if (state.salience === "medium") {
+    return "Medium-salience pattern detected. Capture the learning now so future reviews can resolve it faster.";
+  }
+
+  return "Low-salience state. Continue scanning while preserving memory context for future changes.";
+}
+
 export function ResultsPanel({
   uiState,
   activeTab: _activeTab,
@@ -152,7 +171,9 @@ export function ResultsPanel({
   onJumpToFinding,
   onApplyFix,
   onCancelRun,
-  onRecoverError
+  onRecoverError,
+  storyMode = "off",
+  storyState = null
 }: ResultsPanelProps) {
   const [expandedFindingIndex, setExpandedFindingIndex] = useState<number | null>(null);
   const isDemoMode = uiState.viewMode === "demo";
@@ -183,6 +204,13 @@ export function ResultsPanel({
 
         {currentMemory ? <Badge variant="info">Memory v{currentMemory.version}</Badge> : null}
       </div>
+
+      {storyMode === "on" && currentResult ? (
+        <section className="story-mode-surface rounded-[var(--radius-input)] border border-[var(--border-subtle)] p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Why this memory matters</p>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">{salienceNarrative(storyState)}</p>
+        </section>
+      ) : null}
 
       <>
           {uiState.status === "signed_out" ? (
