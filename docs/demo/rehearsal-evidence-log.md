@@ -1,6 +1,6 @@
 # Rehearsal Evidence Log Template
 
-Use one section per executed round. Keep this file as the source of truth for practice-run outcomes.
+Use one section per executed PR scenario. Keep this file as the source of truth for practice-run outcomes.
 
 ## Session Metadata
 
@@ -14,12 +14,14 @@ Use one section per executed round. Keep this file as the source of truth for pr
 
 ## Entry Template
 
-### Pass: `A` or `B` | Round: `1-5`
+### Scenario PR: `<title with marker>`
 
-- Objective:
+- PR URL:
+- Scenario marker(s):
+- Selected workflow pack:
 - Inputs:
-  - PR:
   - Memory version before run:
+  - Runtime phases shown (`Review`, `Recommend`, `Apply`):
 - Expected result:
 - Actual result:
   - Run ID:
@@ -32,10 +34,12 @@ Use one section per executed round. Keep this file as the source of truth for pr
 - Memory promotion performed:
   - `yes/no`
   - New memory version ID (if yes):
+- Apply Fix performed:
+  - `yes/no`
+  - Commit URL (if yes):
 - Screenshots captured:
-  - Findings panel:
-  - Memory panel:
-  - Timeline (if applicable):
+  - Main review lane:
+  - Details drawer (`Diff`, `Timeline`, `Memory`, or `Run details`):
 - Variance notes:
 - Recovery action taken (if any):
 
@@ -43,8 +47,10 @@ Use one section per executed round. Keep this file as the source of truth for pr
 
 ## Completion Checklist
 
-- [ ] Pass A complete (Rounds 1-3)
-- [ ] Pass B complete (Rounds 1-5)
-- [ ] At least one authenticated refresh test captured
+- [ ] `[baseline]` scenario captured
+- [ ] `[catch]` scenario captured
+- [ ] `[learn]` scenario captured
+- [ ] `[transfer]` scenario captured
+- [ ] At least one run with memory recommendation captured
 - [ ] At least one Apply Fix run recorded
 - [ ] Final recording readiness confirmed
