@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Diff, Hunk, getChangeKey, parseDiff, type ChangeData, type HunkData, type ViewType } from "react-diff-view";
 
 import { Button } from "@/components/ui/button";
+import type { Salience, StoryMode } from "@/lib/brain-story-state";
 import { extractDiffFileChunks, lineAnchorForChange } from "@/lib/diff-anchors";
 import type { DiffLineAnchor } from "@/lib/types";
 
@@ -11,6 +12,8 @@ interface DiffPanelProps {
   jumpAnchor: DiffLineAnchor | null;
   onJumpHandled: () => void;
   compact?: boolean;
+  storyMode?: StoryMode;
+  salience?: Salience;
 }
 
 interface ParsedFile {
@@ -66,7 +69,15 @@ function findHighlightedChangeKeys(hunks: HunkData[], line: number | null): stri
   return keys;
 }
 
-export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled, compact = false }: DiffPanelProps) {
+export function DiffPanel({
+  diffText,
+  loading,
+  jumpAnchor,
+  onJumpHandled,
+  compact = false,
+  storyMode = "off",
+  salience = "low"
+}: DiffPanelProps) {
   const [viewType, setViewType] = useState<ViewType>("unified");
   const [search, setSearch] = useState("");
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -157,7 +168,14 @@ export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled, compac
   const chunkByPath = new Map(diffChunks.map((file) => [file.path, file.chunk]));
 
   return (
-    <section className="space-y-3">
+    <section className={`space-y-3 ${storyMode === "on" ? "rounded-[var(--radius-input)] border border-[var(--border-subtle)] p-2" : ""}`}>
+      {storyMode === "on" ? (
+        <div className="flex items-center justify-between rounded-[var(--radius-input)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs">
+          <span className="font-semibold uppercase tracking-wide text-[var(--text-dim)]">Diff evidence</span>
+          <span className="text-[var(--text-muted)]">signal: {salience}</span>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={search}
