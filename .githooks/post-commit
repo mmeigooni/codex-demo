@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo_root" ]]; then
+  exit 0
+fi
+
+cd "$repo_root"
+
+sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+subject="$(git log -1 --pretty=%s 2>/dev/null || echo "")"
+
+if [[ "$subject" == *"[codex-doc-sync]"* ]]; then
+  exit 0
+fi
+
+log_dir=".git/codex"
+mkdir -p "$log_dir"
+
+review_log="$log_dir/review-${sha}.txt"
+docs_log="$log_dir/docsync-${sha}.log"
+
+if ! command -v codex >/dev/null 2>&1; then
+  {
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] codex CLI not found; skipping review and docs sync for ${sha}."
+  } | tee "$review_log" "$docs_log" >/dev/null
+  exit 0
+fi
+
+codex review --commit HEAD \
+  "Review this commit for bugs, regressions, and missing tests. Keep output concise and include severity." \
+  > >(tee "$review_log") 2>&1 || {
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] codex review failed for ${sha}." >>"$review_log"
+}
+
+read -r -d '' docs_prompt <<PROMPT || true
+You are running inside a Git post-commit hook for commit ${sha}.
+
+Task:
+- Inspect the latest commit and related context.
+- Update documentation only when needed.
+
+Allowed files:
+- README*.md
+- docs/**/*.md
+- CHANGELOG.md
+- CONTRIBUTING.md
+
+Rules:
+- Do not edit source code, configs, tests, migrations, or lockfiles.
+- Do not run git commit.
+- You may modify docs and stage docs-only files if needed.
+- If no docs updates are needed, exit without changing git state.
+PROMPT
+
+codex -a never -s workspace-write exec "$docs_prompt" \
+  > >(tee "$docs_log") 2>&1 || {
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] codex docs sync failed for ${sha}." >>"$docs_log"
+}
+
+mapfile -t changed_files < <(git status --porcelain | awk '{print substr($0,4)}')
+if [[ ${#changed_files[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+is_allowed_doc_file() {
+  local file="$1"
+
+  if [[ "$file" =~ ^README[^/]*\.md$ ]]; then
+    return 0
+  fi
+
+  if [[ "$file" =~ ^(CHANGELOG|CONTRIBUTING)\.md$ ]]; then
+    return 0
+  fi
+
+  if [[ "$file" =~ ^docs/.+\.md$ ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+disallowed=()
+allowed=()
+for file in "${changed_files[@]}"; do
+  if is_allowed_doc_file "$file"; then
+    allowed+=("$file")
+  else
+    disallowed+=("$file")
+  fi
+done
+
+if [[ ${#disallowed[@]} -gt 0 ]]; then
+  {
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] skipping docs commit because non-doc files were modified:"
+    printf ' - %s\n' "${disallowed[@]}"
+  } >>"$docs_log"
+  exit 0
+fi
+
+if [[ ${#allowed[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+if ! git diff --cached --quiet; then
+  git reset >/dev/null 2>&1 || true
+fi
+
+for file in "${allowed[@]}"; do
+  git add -- "$file"
+done
+
+if git diff --cached --quiet; then
+  exit 0
+fi
+
+git commit -m "docs: sync docs for ${sha} [codex-doc-sync]" >/dev/null 2>&1 || {
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] failed to create docs sync commit for ${sha}." >>"$docs_log"
+  exit 0
+}
