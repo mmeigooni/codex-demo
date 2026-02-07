@@ -148,3 +148,19 @@ export interface PromoteMemoryBody {
   changeSummary: string;
   addedRules: AddedRuleGroup[];
 }
+
+export interface TimelineNode {
+  id: string;
+  type: "memory_version" | "run";
+  date: string;
+  memoryVersion?: number;
+  ruleCount?: number;
+  addedRules?: AddedRuleGroup[];
+  approvedBy?: string;
+  runId?: string;
+  prTitle?: string;
+  verdict?: MergeRecommendation;
+  findingCount?: number;
+  memoryVersionUsed?: number;
+  triggeredPromotion?: boolean;
+}
