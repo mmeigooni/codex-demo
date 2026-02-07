@@ -88,6 +88,13 @@ export function WorkflowDashboard() {
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [running, setRunning] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [applyingFixIndex, setApplyingFixIndex] = useState<number | null>(null);
+  const [applyFixFeedback, setApplyFixFeedback] = useState<{
+    index: number;
+    type: "success" | "error";
+    message: string;
+    commitUrl?: string;
+  } | null>(null);
 
   const runAbortRef = useRef<AbortController | null>(null);
   const runPhaseTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
@@ -113,6 +120,10 @@ export function WorkflowDashboard() {
   const runLabel = running ? "Running..." : currentRun ? "Re-run" : "Run";
   const runHelper = `Pack: ${pack?.name ?? "N/A"} · Memory v${currentMemory?.version ?? "-"}`;
   const timelineNodes = useTimelineData(memoryVersions, runs);
+  const selectedPullRequest = useMemo(
+    () => pullRequests.find((pullRequest) => pullRequest.number === selectedPrNumber) ?? null,
+    [pullRequests, selectedPrNumber]
+  );
 
   async function loadBootstrap() {
     setLoadingBootstrap(true);
@@ -367,6 +378,64 @@ export function WorkflowDashboard() {
     setDiffJumpAnchor(anchor);
   }
 
+  async function applyFix(finding: Finding, index: number) {
+    if (!pack || !selectedPrNumber || !selectedPullRequest?.head.ref) {
+      setApplyFixFeedback({
+        index,
+        type: "error",
+        message: "Apply Fix unavailable: missing PR branch context."
+      });
+      return;
+    }
+
+    setApplyingFixIndex(index);
+    setApplyFixFeedback(null);
+
+    try {
+      const response = await fetch("/api/codex/apply-fix", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          workflowPackId: pack.id,
+          repo: normalizeRepoInput(repo),
+          pullNumber: selectedPrNumber,
+          branch: selectedPullRequest.head.ref,
+          finding
+        })
+      });
+
+      const payload = (await response.json()) as {
+        commitSha?: string;
+        commitUrl?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Apply Fix failed");
+      }
+
+      const shortSha = payload.commitSha ? payload.commitSha.slice(0, 7) : "unknown";
+      setApplyFixFeedback({
+        index,
+        type: "success",
+        message: `Fix committed (${shortSha}). Diff refreshed.`,
+        commitUrl: payload.commitUrl
+      });
+
+      await selectPullRequest(selectedPrNumber);
+    } catch (error) {
+      setApplyFixFeedback({
+        index,
+        type: "error",
+        message: error instanceof Error ? error.message : "Apply Fix failed"
+      });
+    } finally {
+      setApplyingFixIndex(null);
+    }
+  }
+
   function summaryFromHistoricalRun(run: RunRecord): string {
     const findings = run.parsed_findings.length;
     if (!findings) {
@@ -573,12 +642,18 @@ export function WorkflowDashboard() {
                 runs={runs}
                 promoting={promoting}
                 selectedPrUrl={selectedPrUrl}
+                canApplyFix={Boolean(pack && selectedPrNumber && selectedPullRequest?.head.ref)}
+                applyingFixIndex={applyingFixIndex}
+                applyFixFeedback={applyFixFeedback}
                 onSelectTab={setActiveTab}
                 onChangeMemory={setCurrentMemoryId}
                 onProposeRule={() => {
                   void proposeRule();
                 }}
                 onJumpToFinding={handleJumpToFinding}
+                onApplyFix={(finding, index) => {
+                  void applyFix(finding, index);
+                }}
                 onCancelRun={cancelRun}
                 onRecoverError={() => dispatchUiState({ type: "CLEAR_ERROR" })}
               />
