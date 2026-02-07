@@ -66,6 +66,7 @@ export function buildTimelineNodes(memoryVersions: MemoryVersion[], runs: RunRec
     id: `memory-${memory.id}`,
     type: "memory_version",
     date: memory.created_at,
+    memoryId: memory.id,
     memoryVersion: memory.version,
     ruleCount: ruleCountFromContent(memory.content),
     addedRules: memory.change_details,
