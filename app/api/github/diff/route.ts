@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveGitHubTokenFromRequest } from "@/lib/auth";
+import { AppError, toErrorResponse } from "@/lib/errors";
 import { createOAuthGitHubAdapter } from "@/lib/github-adapter";
 
 export async function GET(request: Request) {
@@ -10,15 +11,12 @@ export async function GET(request: Request) {
     const pullNumberString = url.searchParams.get("pullNumber");
 
     if (!repo || !pullNumberString) {
-      return NextResponse.json(
-        { error: "Missing required query params: repo and pullNumber" },
-        { status: 400 }
-      );
+      throw new AppError(422, "invalid_diff_params", "Missing required query params: repo and pullNumber");
     }
 
     const pullNumber = Number.parseInt(pullNumberString, 10);
     if (Number.isNaN(pullNumber)) {
-      return NextResponse.json({ error: "Invalid pullNumber" }, { status: 400 });
+      throw new AppError(422, "invalid_pull_number", "Invalid pullNumber");
     }
 
     const token = await resolveGitHubTokenFromRequest(request);
@@ -33,11 +31,6 @@ export async function GET(request: Request) {
       diff: data.diff
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "unknown_error"
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "github_diff_failed");
   }
 }
