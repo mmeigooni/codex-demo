@@ -15,7 +15,8 @@ if [[ "$subject" == *"[codex-doc-sync]"* ]]; then
   exit 0
 fi
 
-log_dir=".git/codex"
+git_dir="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
+log_dir="${git_dir}/codex"
 mkdir -p "$log_dir"
 
 review_log="$log_dir/review-${sha}.txt"
