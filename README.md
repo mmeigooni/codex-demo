@@ -100,14 +100,14 @@ npm run verify:hooks
 Once hooks are set up, every successful `git commit` in this clone automatically runs `.githooks/post-commit`.
 
 What it does in plain English:
-- It reviews the commit with Codex and writes results to `.git/codex/review-<sha>.txt`.
+- It reviews the commit with Codex and writes results to `<git-dir>/codex/review-<sha>.txt` (for example `.git/codex/...` in a regular clone, or `.git/worktrees/<name>/codex/...` in a worktree).
 - It asks Codex whether docs should change (`README*.md`, `docs/**/*.md`, `CHANGELOG.md`, `CONTRIBUTING.md`).
 - If docs changes are needed, it creates one follow-up docs-only commit with marker `[codex-doc-sync]`.
 - If docs changes are not needed, it exits without extra commits.
 - It skips itself on `[codex-doc-sync]` commits so it does not loop.
 
 Notes:
-- Hook logs are stored in `.git/codex/` (`review-<sha>.txt` and `docsync-<sha>.log`).
+- Hook logs are stored under `<git-dir>/codex/` (`review-<sha>.txt` and `docsync-<sha>.log`).
 - Git hooks are local machine settings; each clone/developer runs `npm run setup:hooks` once.
 
 Troubleshooting:
