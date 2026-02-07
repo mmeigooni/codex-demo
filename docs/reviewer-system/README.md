@@ -23,6 +23,26 @@ The reviewer system is designed to:
 
 For full application onboarding and system architecture, use the canonical root README: `../../README.md`.
 
+## Local Gate Mode (Pre-Commit)
+1. Install hooks once per clone:
+- `npm run setup:hooks`
+2. Verify both hooks are active:
+- `npm run verify:hooks`
+3. Run the local reviewer gate manually when needed:
+- `npm run review:precommit`
+4. During `git commit`, the pre-commit hook now runs staged + neighbor review automatically.
+5. One-off bypass is explicit:
+- `SKIP_AI_REVIEW=1 git commit ...`
+
+Local gate decision policy:
+- block only when an unresolved finding is `high|critical` with `high` confidence,
+- tooling/runtime failures warn and allow commit,
+- partially staged files warn and allow commit to avoid wrong-snapshot blocking,
+- audit artifacts are written under `.git/codex/precommit/`.
+
+Detailed policy and specialist mapping:
+- `docs/reviewer-system/local-precommit-gate-policy.md`
+
 ## Architecture At a Glance (Reviewer System)
 The reviewer system operates as a process pipeline:
 1. Manifest and policy define trusted skills, scope, and role ownership.

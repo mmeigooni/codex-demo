@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo_root" ]]; then
+  exit 0
+fi
+
+cd "$repo_root"
+
+if [[ "${SKIP_AI_REVIEW:-0}" == "1" ]]; then
+  echo "[ai-review] SKIP_AI_REVIEW=1 set; skipping pre-commit multi-agent review."
+  exit 0
+fi
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+if [[ -z "$staged_files" ]]; then
+  exit 0
+fi
+
+if ! printf '%s\n' "$staged_files" | grep -Eq '(^|/)(app|components|lib|tests|docs|supabase|\.github)/|\.(ts|tsx|js|jsx|mjs|cjs|sql|md|json|ya?ml)$'; then
+  exit 0
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "[ai-review] node not found; allowing commit without pre-commit review."
+  exit 0
+fi
+
+set +e
+node scripts/reviewer/precommit-review.mjs
+rc=$?
+set -e
+
+case "$rc" in
+  0)
+    exit 0
+    ;;
+  2)
+    echo "[ai-review] commit blocked by local policy findings (high/critical + high confidence)."
+    exit 1
+    ;;
+  1)
+    echo "[ai-review] reviewer tooling warning; commit allowed."
+    exit 0
+    ;;
+  *)
+    echo "[ai-review] unexpected reviewer exit code ($rc); commit allowed."
+    exit 0
+    ;;
+esac

@@ -11,7 +11,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "setup:hooks": "bash scripts/setup-hooks.sh",
-    "verify:hooks": "echo \"core.hooksPath=$(git config --get core.hooksPath || echo unset)\" && ls -l .githooks/post-commit"
+    "verify:hooks": "echo \"core.hooksPath=$(git config --get core.hooksPath || echo unset)\" && ls -l .githooks/pre-commit .githooks/post-commit",
+    "review:precommit": "node scripts/reviewer/precommit-review.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
