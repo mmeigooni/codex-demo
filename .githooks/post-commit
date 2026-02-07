@@ -29,9 +29,7 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 0
 fi
 
-codex review --commit HEAD \
-  "Review this commit for bugs, regressions, and missing tests. Keep output concise and include severity." \
-  > >(tee "$review_log") 2>&1 || {
+codex review --commit HEAD > >(tee "$review_log") 2>&1 || {
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] codex review failed for ${sha}." >>"$review_log"
 }
 
@@ -50,8 +48,8 @@ Allowed files:
 
 Rules:
 - Do not edit source code, configs, tests, migrations, or lockfiles.
-- Do not run git commit.
-- You may modify docs and stage docs-only files if needed.
+- Do not run git commands.
+- You may modify docs only; the hook will stage and commit docs changes if valid.
 - If no docs updates are needed, exit without changing git state.
 PROMPT
 
@@ -60,7 +58,11 @@ codex -a never -s workspace-write exec "$docs_prompt" \
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] codex docs sync failed for ${sha}." >>"$docs_log"
 }
 
-mapfile -t changed_files < <(git status --porcelain | awk '{print substr($0,4)}')
+changed_files=()
+while IFS= read -r line; do
+  changed_files+=("${line:3}")
+done < <(git status --porcelain)
+
 if [[ ${#changed_files[@]} -eq 0 ]]; then
   exit 0
 fi
