@@ -15,6 +15,7 @@ import { RunDetailsPanel } from "@/components/workflow/run-details-panel";
 import { TopBar } from "@/components/workflow/top-bar";
 import { UnifiedDetailsDrawer } from "@/components/workflow/unified-details-drawer";
 import type { DashboardBootstrapResponse } from "@/lib/api-contracts";
+import { deriveBrainStoryState, type StoryMode } from "@/lib/brain-story-state";
 import { DEMO_SCRIPT_ROUNDS, getRoundByKey, initialRoundKey } from "@/lib/demo-script";
 import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
@@ -22,6 +23,7 @@ import { recommendPackForPr } from "@/lib/pack-recommendation";
 import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
 import { canUseApplyFix } from "@/lib/round-guards";
 import { deriveRuntimePhaseState } from "@/lib/runtime-phase";
+import { loadStoryMode, saveStoryMode } from "@/lib/story-mode-storage";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useTimelineData } from "@/lib/use-timeline-data";
 import {
@@ -84,6 +86,7 @@ export function WorkflowDashboard() {
   const [activeTab, setActiveTab] = useState<RightPanelTab>("findings");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("diff");
+  const [storyMode, setStoryMode] = useState<StoryMode>("off");
 
   const [session, setSession] = useState<SessionLike | null>(null);
 
@@ -196,6 +199,19 @@ export function WorkflowDashboard() {
         recommendationCompleted: walkthroughStep === "prove"
       }),
     [uiState.status, currentResult, applyFixEnabled, walkthroughStep]
+  );
+  const brainStoryState = useMemo(
+    () =>
+      deriveBrainStoryState({
+        mode: storyMode,
+        status: uiState.status,
+        runtimePhase: runtimePhaseState,
+        findings: currentResult?.findings ?? [],
+        hasMemorySuggestion: Boolean(currentResult?.memory_suggestions.length),
+        canApply: applyFixEnabled,
+        applyFixUsed: Boolean(uiState.applyFixUsed)
+      }),
+    [storyMode, uiState.status, runtimePhaseState, currentResult, applyFixEnabled, uiState.applyFixUsed]
   );
 
   function setViewMode(nextMode: DemoViewMode) {
@@ -689,6 +705,8 @@ export function WorkflowDashboard() {
     if (storedDetailsTab === "diff" || storedDetailsTab === "timeline" || storedDetailsTab === "memory" || storedDetailsTab === "run_details") {
       setDetailsTab(storedDetailsTab);
     }
+
+    setStoryMode(loadStoryMode());
   }, []);
 
   useEffect(() => {
@@ -704,6 +722,10 @@ export function WorkflowDashboard() {
   useEffect(() => {
     window.sessionStorage.setItem("workflow:details-tab", detailsTab);
   }, [detailsTab]);
+
+  useEffect(() => {
+    saveStoryMode(storyMode);
+  }, [storyMode]);
 
   useEffect(() => {
     if (!selectedPack) {
@@ -783,6 +805,7 @@ export function WorkflowDashboard() {
             selectedPrNumber={selectedPrNumber}
             selectedPrTitle={selectedPrTitle}
             selectedPrUrl={selectedPrUrl}
+            storyMode={storyMode}
             onRefreshPullRequests={() => {
               const normalizedRepo = normalizeRepoInput(repo);
               if (!repoValidationMessage(normalizedRepo)) {
@@ -835,6 +858,8 @@ export function WorkflowDashboard() {
             }}
             onCancelRun={cancelRun}
             onRecoverError={() => dispatchUiState({ type: "CLEAR_ERROR" })}
+            storyMode={storyMode}
+            storyState={brainStoryState}
           />
         </CardContent>
       </Card>
@@ -856,6 +881,8 @@ export function WorkflowDashboard() {
           onRun={() => {
             void runAnalysis();
           }}
+          storyMode={storyMode}
+          onStoryModeChange={setStoryMode}
           onSignOut={async () => {
             if (!supabase) return;
             await fetch("/api/auth/github-token", { method: "DELETE" });
@@ -932,6 +959,9 @@ export function WorkflowDashboard() {
           <DemoModeShell
             selectedRound={selectedRound}
             phaseState={runtimePhaseState}
+            storyMode={storyMode}
+            storyState={brainStoryState}
+            onStoryModeChange={setStoryMode}
             onToggleMode={() => setViewMode("advanced")}
           >
             {reviewPanels}

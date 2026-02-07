@@ -58,7 +58,7 @@ export function DemoModeShell({
 
         <div className="mt-3">
           {storyMode === "on" && storyState ? <BrainHero state={storyState} /> : null}
-          <RuntimePhaseBar state={phaseState} />
+          <RuntimePhaseBar state={phaseState} storyMode={storyMode} storyState={storyState} />
         </div>
       </header>
 
