@@ -58,6 +58,10 @@ type SessionLike = {
 
 type DetailsTab = "diff" | "timeline" | "memory" | "run_details";
 
+function isDetailsTab(value: string | null): value is DetailsTab {
+  return value === "diff" || value === "timeline" || value === "memory" || value === "run_details";
+}
+
 function memoryFromSuggestion(memory: MemoryVersion, suggestion: MemorySuggestion): { newContent: string; section: string } {
   const section = suggestion.category;
   const lines = suggestion.content
@@ -701,12 +705,14 @@ export function WorkflowDashboard() {
       dispatchUiState({ type: "ROUND_SELECTED", roundKey: nextRoundKey });
     }
 
-    const storedDetailsTab = window.sessionStorage.getItem("workflow:details-tab");
-    if (storedDetailsTab === "diff" || storedDetailsTab === "timeline" || storedDetailsTab === "memory" || storedDetailsTab === "run_details") {
+    const initialStoryMode = loadStoryMode();
+    setStoryMode(initialStoryMode);
+
+    const modeScopedKey = initialStoryMode === "on" ? "workflow.detailsTab.story" : "workflow.detailsTab.default";
+    const storedDetailsTab = window.localStorage.getItem(modeScopedKey) ?? window.sessionStorage.getItem("workflow:details-tab");
+    if (isDetailsTab(storedDetailsTab)) {
       setDetailsTab(storedDetailsTab);
     }
-
-    setStoryMode(loadStoryMode());
   }, []);
 
   useEffect(() => {
@@ -720,8 +726,10 @@ export function WorkflowDashboard() {
   }, [selectedRoundKey, viewMode]);
 
   useEffect(() => {
+    const modeScopedKey = storyMode === "on" ? "workflow.detailsTab.story" : "workflow.detailsTab.default";
+    window.localStorage.setItem(modeScopedKey, detailsTab);
     window.sessionStorage.setItem("workflow:details-tab", detailsTab);
-  }, [detailsTab]);
+  }, [detailsTab, storyMode]);
 
   useEffect(() => {
     saveStoryMode(storyMode);
@@ -903,6 +911,7 @@ export function WorkflowDashboard() {
         <UnifiedDetailsDrawer
           open={detailsOpen}
           activeTab={detailsTab}
+          storyMode={storyMode}
           onToggle={() => setDetailsOpen((value) => !value)}
           onSelectTab={(tabId) => {
             if (tabId === "diff" || tabId === "timeline" || tabId === "memory" || tabId === "run_details") {
@@ -920,6 +929,8 @@ export function WorkflowDashboard() {
                   jumpAnchor={diffJumpAnchor}
                   onJumpHandled={() => setDiffJumpAnchor(null)}
                   compact
+                  storyMode={storyMode}
+                  salience={brainStoryState.salience}
                 />
               )
             },
@@ -932,6 +943,7 @@ export function WorkflowDashboard() {
                   selectedNodeId={selectedTimelineNodeId ?? undefined}
                   onSelectNode={(node) => handleSelectTimelineNode(node.id)}
                   compact
+                  storyMode={storyMode}
                 />
               )
             },
