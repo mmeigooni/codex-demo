@@ -1,0 +1,24 @@
+{
+  "summary": "Found 2 issues in webhook and subscription handlers.",
+  "findings": [
+    {
+      "severity": "critical",
+      "title": "Missing webhook signature validation",
+      "file": "src/payments/webhook.ts",
+      "line": 12,
+      "description": "Incoming webhook requests are processed without validating provider signature headers.",
+      "memory_reference": "Validate provider signatures before processing webhook payloads",
+      "suggested_fix": "Verify signature with provider secret before parsing and handling event payloads."
+    },
+    {
+      "severity": "warning",
+      "title": "Retry loop lacks exponential backoff",
+      "file": "src/checkout/subscription.ts",
+      "line": 55,
+      "description": "Subscription retry flow retries immediately without backoff, increasing duplicate request risk.",
+      "memory_reference": "Retry logic must use exponential backoff with jitter",
+      "suggested_fix": "Use capped exponential backoff with jitter between retry attempts."
+    }
+  ],
+  "memory_suggestions": []
+}
