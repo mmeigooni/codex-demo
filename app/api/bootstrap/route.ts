@@ -6,14 +6,25 @@ export async function GET() {
   try {
     const supabase = createSupabaseServiceClient();
 
-    const [packResult, memoryResult, runResult] = await Promise.all([
-      supabase.from("workflow_packs").select("*").eq("status", "active").limit(1).single(),
+    const [packsResult, memoryResult, runResult] = await Promise.all([
+      supabase.from("workflow_packs").select("*").order("status", { ascending: true }).order("name", { ascending: true }),
       supabase.from("memory_versions").select("*").order("version", { ascending: true }),
       supabase.from("runs").select("*").order("created_at", { ascending: true })
     ]);
 
-    if (packResult.error || !packResult.data) {
-      return NextResponse.json({ error: "Active workflow pack not found" }, { status: 404 });
+    if (packsResult.error || !packsResult.data) {
+      return NextResponse.json({ error: packsResult.error?.message ?? "Failed to load workflow packs" }, { status: 500 });
+    }
+
+    const defaultPack = packsResult.data.find((pack) => pack.status === "active");
+    if (!defaultPack) {
+      return NextResponse.json(
+        {
+          error: "No active workflow pack available",
+          code: "default_pack_not_found"
+        },
+        { status: 404 }
+      );
     }
 
     if (memoryResult.error) {
@@ -25,7 +36,8 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      activePack: packResult.data,
+      workflowPacks: packsResult.data,
+      defaultPackId: defaultPack.id,
       memoryVersions: memoryResult.data,
       runs: runResult.data
     });
