@@ -96,6 +96,11 @@ npm run build
 npm run verify:hooks
 ```
 
+## Reviewer System Docs
+- `docs/reviewer-system/README.md`: reviewer system goals, governance, and operating scope.
+- `docs/reviewer-system/reviewer-manifest.md`: trusted skill policy, installation, and role mapping.
+- `docs/reviewer-system/RUNBOOK.md`: two-pass execution flow and output artifact rules.
+
 ## Automatic Post-Commit Codex Checks
 Once hooks are set up, every successful `git commit` in this clone automatically runs `.githooks/post-commit`.
 
