@@ -37,6 +37,7 @@ import type {
 } from "@/lib/types";
 
 type SessionLike = {
+  provider_token?: string;
   user: {
     email?: string;
     user_metadata?: {
@@ -195,6 +196,16 @@ export function WorkflowDashboard() {
     }
   }
 
+  async function relayProviderToken(providerToken: string) {
+    await fetch("/api/auth/github-token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ providerToken })
+    });
+  }
+
   async function loadPullRequests(targetRepo: string) {
     dispatchUiState({ type: "REPO_LOAD_START" });
     setLoadingPrs(true);
@@ -203,7 +214,18 @@ export function WorkflowDashboard() {
       const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(targetRepo)}`);
 
       if (!response.ok) {
-        throw new Error("Failed to load pull requests");
+        let details = "Failed to load pull requests";
+        try {
+          const payload = (await response.json()) as { error?: string; code?: string };
+          if (response.status === 401 || payload.code === "missing_github_token") {
+            details = "GitHub token expired or missing. Sign out and connect GitHub again, then refresh PRs.";
+          } else {
+            details = payload.error ?? details;
+          }
+        } catch {
+          // Fall back to generic details message when upstream payload is unavailable.
+        }
+        throw new Error(details);
       }
 
       const data = (await response.json()) as {
@@ -242,7 +264,18 @@ export function WorkflowDashboard() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch pull request diff");
+        let details = "Failed to fetch pull request diff";
+        try {
+          const payload = (await response.json()) as { error?: string; code?: string };
+          if (response.status === 401 || payload.code === "missing_github_token") {
+            details = "GitHub token expired or missing. Sign out and connect GitHub again, then re-open the PR.";
+          } else {
+            details = payload.error ?? details;
+          }
+        } catch {
+          // Fall back to generic details message when upstream payload is unavailable.
+        }
+        throw new Error(details);
       }
 
       const data = (await response.json()) as {
@@ -551,6 +584,13 @@ export function WorkflowDashboard() {
       const { data } = await supabase.auth.getSession();
       const nextSession = (data.session as SessionLike | null) ?? null;
       setSession(nextSession);
+      if (nextSession?.provider_token) {
+        try {
+          await relayProviderToken(nextSession.provider_token);
+        } catch {
+          // Keep dashboard usable; API routes will surface token errors if relay fails.
+        }
+      }
       dispatchUiState({ type: "SESSION_CHANGED", signedIn: Boolean(nextSession) });
     };
 
@@ -561,6 +601,11 @@ export function WorkflowDashboard() {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       const typedSession = (nextSession as SessionLike | null) ?? null;
       setSession(typedSession);
+      if (typedSession?.provider_token) {
+        void relayProviderToken(typedSession.provider_token).catch(() => {
+          // Ignore relay failures here; user-facing routes still return typed auth errors.
+        });
+      }
       dispatchUiState({ type: "SESSION_CHANGED", signedIn: Boolean(typedSession) });
     });
 

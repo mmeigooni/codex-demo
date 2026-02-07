@@ -1,7 +1,8 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 export const GITHUB_TOKEN_COOKIE_NAME = "gh_provider_token";
-const TOKEN_TTL_SECONDS = 30 * 60;
+// Demo UX: reduce forced re-auth during rehearsal/recording sessions.
+const TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
 interface TokenEnvelope {
   token: string;
