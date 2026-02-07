@@ -1,21 +1,54 @@
+import type { BrainStoryState, StoryMode } from "@/lib/brain-story-state";
 import type { RuntimePhase, RuntimePhaseState } from "@/lib/types";
 
 interface RuntimePhaseBarProps {
   state: RuntimePhaseState;
+  storyMode?: StoryMode;
+  storyState?: BrainStoryState | null;
 }
 
-const LABELS: Record<RuntimePhase, string> = {
+const UTILITY_LABELS: Record<RuntimePhase, string> = {
   review: "Review",
   recommend: "Recommend",
   apply: "Apply"
 };
 
-export function RuntimePhaseBar({ state }: RuntimePhaseBarProps) {
+function storyLabel(phase: RuntimePhase, storyState: BrainStoryState | null | undefined): string {
+  if (phase === "review") {
+    return storyState?.phase === "detect" ? "Detect" : "Scan";
+  }
+
+  if (phase === "recommend") {
+    return "Index";
+  }
+
+  return "Consolidate";
+}
+
+function salienceTone(storyState: BrainStoryState | null | undefined): string {
+  if (!storyState) {
+    return "bg-[var(--border-subtle)]";
+  }
+
+  if (storyState.salience === "high") {
+    return "bg-red-500";
+  }
+
+  if (storyState.salience === "medium") {
+    return "bg-sky-500";
+  }
+
+  return "bg-emerald-500";
+}
+
+export function RuntimePhaseBar({ state, storyMode = "off", storyState = null }: RuntimePhaseBarProps) {
   return (
     <ol className="grid gap-2 md:grid-cols-3">
       {state.phases.map((phase) => {
         const active = phase === state.current;
         const complete = state.completed.includes(phase);
+        const utility = UTILITY_LABELS[phase];
+        const story = storyLabel(phase, storyState);
 
         return (
           <li
@@ -28,8 +61,13 @@ export function RuntimePhaseBar({ state }: RuntimePhaseBarProps) {
                   : "border-[var(--border-subtle)] bg-[var(--surface-muted)]"
             }`}
           >
-            <p className="text-xs font-semibold text-[var(--text-strong)]">{LABELS[phase]}</p>
-            <p className="text-xs text-[var(--text-muted)]">{complete ? "Complete" : active ? "In progress" : "Pending"}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-[var(--text-strong)]">{storyMode === "on" ? story : utility}</p>
+              {storyMode === "on" ? <span className={`h-2 w-2 rounded-full ${salienceTone(storyState)}`} aria-hidden="true" /> : null}
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              {storyMode === "on" ? `${utility} lane` : complete ? "Complete" : active ? "In progress" : "Pending"}
+            </p>
           </li>
         );
       })}
