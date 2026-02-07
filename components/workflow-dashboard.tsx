@@ -143,19 +143,17 @@ export function WorkflowDashboard() {
   }
 
   async function loadPullRequests(targetRepo: string) {
-    if (!githubToken) {
-      return;
-    }
-
     dispatchUiState({ type: "REPO_LOAD_START" });
     setLoadingPrs(true);
 
     try {
-      const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(targetRepo)}`, {
-        headers: {
-          "x-github-token": githubToken
-        }
-      });
+      const response = await fetch(`/api/github/prs?repo=${encodeURIComponent(targetRepo)}`, githubToken
+        ? {
+            headers: {
+              "x-github-token": githubToken
+            }
+          }
+        : undefined);
 
       if (!response.ok) {
         throw new Error("Failed to load pull requests");
@@ -187,10 +185,6 @@ export function WorkflowDashboard() {
   }
 
   async function selectPullRequest(pullNumber: number) {
-    if (!githubToken) {
-      return;
-    }
-
     setSelectedPrNumber(pullNumber);
     setLoadingDiff(true);
     dispatchUiState({ type: "PR_LOAD_START" });
@@ -198,11 +192,13 @@ export function WorkflowDashboard() {
     try {
       const response = await fetch(
         `/api/github/diff?repo=${encodeURIComponent(normalizeRepoInput(repo))}&pullNumber=${pullNumber}`,
-        {
-          headers: {
-            "x-github-token": githubToken
-          }
-        }
+        githubToken
+          ? {
+              headers: {
+                "x-github-token": githubToken
+              }
+            }
+          : undefined
       );
 
       if (!response.ok) {
@@ -415,7 +411,7 @@ export function WorkflowDashboard() {
 
   useEffect(() => {
     const normalizedRepo = normalizeRepoInput(repo);
-    if (!shouldAutoloadRepo(normalizedRepo, githubToken)) {
+    if (!shouldAutoloadRepo(normalizedRepo, githubToken ?? (session ? "session" : undefined))) {
       return;
     }
 
@@ -426,7 +422,7 @@ export function WorkflowDashboard() {
     return () => {
       clearTimeout(timer);
     };
-  }, [repo, githubToken]);
+  }, [repo, githubToken, session]);
 
   useEffect(() => {
     return () => {
@@ -476,6 +472,7 @@ export function WorkflowDashboard() {
                 repo={repo}
                 onRepoChange={setRepo}
                 repoValidationMessage={repoMessage}
+                hasGithubAuth={Boolean(session)}
                 pullRequests={pullRequests}
                 loadingPrs={loadingPrs}
                 loadingDiff={loadingDiff}

@@ -7,6 +7,7 @@ interface PrContextPanelProps {
   repo: string;
   onRepoChange: (value: string) => void;
   repoValidationMessage: string | null;
+  hasGithubAuth: boolean;
   pullRequests: GitHubPullRequest[];
   loadingPrs: boolean;
   loadingDiff: boolean;
@@ -42,6 +43,7 @@ export function PrContextPanel({
   repo,
   onRepoChange,
   repoValidationMessage,
+  hasGithubAuth,
   pullRequests,
   loadingPrs,
   loadingDiff,
@@ -88,11 +90,17 @@ export function PrContextPanel({
             aria-invalid={Boolean(repoValidationMessage)}
             suppressHydrationWarning
           />
-          <Button variant="secondary" onClick={onRefreshPullRequests} disabled={loadingPrs || Boolean(repoValidationMessage)}>
+          <Button
+            variant="secondary"
+            onClick={onRefreshPullRequests}
+            disabled={!hasGithubAuth || loadingPrs || Boolean(repoValidationMessage)}
+          >
             {loadingPrs ? "Refreshing..." : "Refresh PRs"}
           </Button>
         </div>
-        {repoValidationMessage ? (
+        {!hasGithubAuth ? (
+          <p className="mt-1 text-xs text-[var(--text-muted)]">Connect GitHub to load pull requests.</p>
+        ) : repoValidationMessage ? (
           <p className="mt-1 text-xs text-red-700">{repoValidationMessage}</p>
         ) : (
           <p className="mt-1 text-xs text-[var(--text-muted)]">PRs auto-load when repository format is valid.</p>
