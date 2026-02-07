@@ -86,6 +86,7 @@ export function PrContextPanel({
             onChange={(event) => onRepoChange(event.target.value)}
             placeholder="owner/name"
             aria-invalid={Boolean(repoValidationMessage)}
+            suppressHydrationWarning
           />
           <Button variant="secondary" onClick={onRefreshPullRequests} disabled={loadingPrs || Boolean(repoValidationMessage)}>
             {loadingPrs ? "Refreshing..." : "Refresh PRs"}
@@ -128,6 +129,7 @@ export function PrContextPanel({
           }}
           placeholder="Search PRs by number, title, or author"
           className="mb-2 w-full rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] px-3 py-2 text-sm text-[var(--text-strong)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+          suppressHydrationWarning
         />
 
         <div
