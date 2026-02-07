@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import type { StoryMode } from "@/lib/brain-story-state";
 import { parsePrScenario } from "@/lib/pr-scenario";
 import type { GitHubPullRequest } from "@/lib/types";
 
@@ -15,6 +16,7 @@ interface PrContextPanelProps {
   selectedPrNumber: number | null;
   selectedPrTitle: string;
   selectedPrUrl: string;
+  storyMode?: StoryMode;
   onRefreshPullRequests: () => void;
   onSelectPullRequest: (pullNumber: number) => void;
 }
@@ -59,6 +61,7 @@ export function PrContextPanel({
   selectedPrNumber,
   selectedPrTitle,
   selectedPrUrl,
+  storyMode = "off",
   onRefreshPullRequests,
   onSelectPullRequest
 }: PrContextPanelProps) {
@@ -117,7 +120,9 @@ export function PrContextPanel({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">Open pull requests</label>
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-dim)]">
+          {storyMode === "on" ? "Open pull requests and context cues" : "Open pull requests"}
+        </label>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -158,6 +163,7 @@ export function PrContextPanel({
             filteredPullRequests.map((pullRequest, index) => {
               const isActive = index === activeIndex;
               const isSelected = pullRequest.number === selectedPrNumber;
+              const scenario = parsePrScenario(pullRequest.title);
 
               return (
                 <button
@@ -178,14 +184,14 @@ export function PrContextPanel({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-strong)]">#{pullRequest.number} · {pullRequest.title}</p>
-                      {parsePrScenario(pullRequest.title).tags.length ? (
+                      {scenario.tags.length ? (
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {parsePrScenario(pullRequest.title).tags.map((tag) => (
+                          {scenario.tags.map((tag) => (
                             <span
                               key={`${pullRequest.number}-${tag}`}
-                              className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${scenarioChipClass(tag)}`}
+                              className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${scenarioChipClass(tag)} ${storyMode === "on" ? "story-mode-pulse" : ""}`}
                             >
-                              {tag}
+                              {storyMode === "on" ? `cue:${tag}` : tag}
                             </span>
                           ))}
                         </div>
@@ -221,9 +227,9 @@ export function PrContextPanel({
               {parsePrScenario(selectedPrTitle).tags.map((tag) => (
                 <span
                   key={`selected-${tag}`}
-                  className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${scenarioChipClass(tag)}`}
+                  className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${scenarioChipClass(tag)} ${storyMode === "on" ? "story-mode-pulse" : ""}`}
                 >
-                  {tag}
+                  {storyMode === "on" ? `cue:${tag}` : tag}
                 </span>
               ))}
             </div>
