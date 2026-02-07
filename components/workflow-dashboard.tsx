@@ -4,6 +4,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DiffPanel } from "@/components/workflow/diff-panel";
+import { MemoryTimeline } from "@/components/workflow/memory-timeline";
 import { MorePacksDrawer } from "@/components/workflow/more-packs-drawer";
 import { PrContextPanel } from "@/components/workflow/pr-context-panel";
 import { ResultsPanel } from "@/components/workflow/results-panel";
@@ -12,6 +13,7 @@ import { DEFAULT_DEMO_REPO, GITHUB_OAUTH_SCOPES } from "@/lib/constants";
 import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anchors";
 import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useTimelineData } from "@/lib/use-timeline-data";
 import {
   canRunAnalysis,
   initialWorkflowUiState,
@@ -79,6 +81,7 @@ export function WorkflowDashboard() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
   const [currentResult, setCurrentResult] = useState<RunResult | null>(null);
+  const [selectedTimelineNodeId, setSelectedTimelineNodeId] = useState<string | null>(null);
 
   const [loadingBootstrap, setLoadingBootstrap] = useState(true);
   const [loadingPrs, setLoadingPrs] = useState(false);
@@ -109,6 +112,7 @@ export function WorkflowDashboard() {
 
   const runLabel = running ? "Running..." : currentRun ? "Re-run" : "Run";
   const runHelper = `Pack: ${pack?.name ?? "N/A"} · Memory v${currentMemory?.version ?? "-"}`;
+  const timelineNodes = useTimelineData(memoryVersions, runs);
 
   async function loadBootstrap() {
     setLoadingBootstrap(true);
@@ -363,6 +367,51 @@ export function WorkflowDashboard() {
     setDiffJumpAnchor(anchor);
   }
 
+  function summaryFromHistoricalRun(run: RunRecord): string {
+    const findings = run.parsed_findings.length;
+    if (!findings) {
+      return `Historical run for ${run.pr_title} completed with no findings.`;
+    }
+
+    return `Historical run for ${run.pr_title} completed with ${findings} finding${findings === 1 ? "" : "s"}.`;
+  }
+
+  function handleSelectTimelineNode(nodeId: string) {
+    setSelectedTimelineNodeId(nodeId);
+    const node = timelineNodes.find((candidate) => candidate.id === nodeId);
+    if (!node) {
+      return;
+    }
+
+    if (node.type === "memory_version" && node.memoryId) {
+      setCurrentMemoryId(node.memoryId);
+      setActiveTab("memory");
+      return;
+    }
+
+    if (node.type === "run" && node.runId) {
+      const run = runs.find((candidate) => candidate.id === node.runId);
+      if (!run) {
+        return;
+      }
+
+      setCurrentRun(run);
+      setCurrentResult({
+        summary: summaryFromHistoricalRun(run),
+        findings: run.parsed_findings,
+        memory_suggestions: run.memory_suggestions
+      });
+      setSelectedPrTitle(run.pr_title);
+      setSelectedPrUrl(run.pr_url);
+      setPrDiff(run.pr_diff);
+      setDiffJumpAnchor(null);
+
+      const pullNumber = Number.parseInt(run.pr_url.match(/\/pull\/(\d+)/)?.[1] ?? "", 10);
+      setSelectedPrNumber(Number.isFinite(pullNumber) ? pullNumber : null);
+      setActiveTab("findings");
+    }
+  }
+
   useEffect(() => {
     void loadBootstrap();
   }, []);
@@ -416,6 +465,16 @@ export function WorkflowDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!timelineNodes.length) {
+      return;
+    }
+
+    if (!selectedTimelineNodeId || !timelineNodes.some((node) => node.id === selectedTimelineNodeId)) {
+      setSelectedTimelineNodeId(timelineNodes.at(-1)?.id ?? null);
+    }
+  }, [timelineNodes, selectedTimelineNodeId]);
+
   return (
     <main className="min-h-screen px-4 py-4 md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4">
@@ -446,6 +505,12 @@ export function WorkflowDashboard() {
               }
             });
           }}
+        />
+
+        <MemoryTimeline
+          nodes={timelineNodes}
+          selectedNodeId={selectedTimelineNodeId ?? undefined}
+          onSelectNode={(node) => handleSelectTimelineNode(node.id)}
         />
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">

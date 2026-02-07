@@ -153,6 +153,7 @@ export interface TimelineNode {
   id: string;
   type: "memory_version" | "run";
   date: string;
+  memoryId?: string;
   memoryVersion?: number;
   ruleCount?: number;
   addedRules?: AddedRuleGroup[];
