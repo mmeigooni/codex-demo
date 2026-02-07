@@ -18,6 +18,7 @@ import { mapFindingToDiffAnchor, extractDiffFileSummaries } from "@/lib/diff-anc
 import { recommendPackForPr } from "@/lib/pack-recommendation";
 import { normalizeRepoInput, repoValidationMessage, REPO_AUTOLOAD_DEBOUNCE_MS, shouldAutoloadRepo } from "@/lib/repo-utils";
 import { canUseApplyFix } from "@/lib/round-guards";
+import { deriveRuntimePhaseState } from "@/lib/runtime-phase";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useTimelineData } from "@/lib/use-timeline-data";
 import {
@@ -178,6 +179,17 @@ export function WorkflowDashboard() {
     applyFixUsedInRound: uiState.applyFixUsed ?? false,
     hasBackendCapability: Boolean(selectedPack && selectedPrNumber && selectedPullRequest?.head.ref)
   });
+  const runtimePhaseState = useMemo(
+    () =>
+      deriveRuntimePhaseState({
+        status: uiState.status,
+        findingsCount: currentResult?.findings.length ?? 0,
+        hasMemorySuggestion: Boolean(currentResult?.memory_suggestions.length),
+        canApply: applyFixEnabled,
+        recommendationCompleted: walkthroughStep === "prove"
+      }),
+    [uiState.status, currentResult, applyFixEnabled, walkthroughStep]
+  );
 
   function setViewMode(nextMode: DemoViewMode) {
     dispatchUiState({ type: "DEMO_MODE_TOGGLED", viewMode: nextMode });
@@ -865,12 +877,8 @@ export function WorkflowDashboard() {
 
         {viewMode === "demo" ? (
           <DemoModeShell
-            rounds={DEMO_SCRIPT_ROUNDS}
-            selectedRoundKey={selectedRoundKey}
-            currentStep={walkthroughStep}
-            objective={selectedRound.objective}
-            expectedRecommendation={selectedRound.expectedRecommendation}
-            onSelectRound={handleSelectRound}
+            selectedRound={selectedRound}
+            phaseState={runtimePhaseState}
             onToggleMode={() => setViewMode("advanced")}
           >
             {reviewPanels}
