@@ -10,6 +10,7 @@ interface DiffPanelProps {
   loading: boolean;
   jumpAnchor: DiffLineAnchor | null;
   onJumpHandled: () => void;
+  compact?: boolean;
 }
 
 interface ParsedFile {
@@ -65,7 +66,7 @@ function findHighlightedChangeKeys(hunks: HunkData[], line: number | null): stri
   return keys;
 }
 
-export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled }: DiffPanelProps) {
+export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled, compact = false }: DiffPanelProps) {
   const [viewType, setViewType] = useState<ViewType>("unified");
   const [search, setSearch] = useState("");
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -140,7 +141,9 @@ export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled }: Diff
         <div className="rounded-[var(--radius-input)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           Diff parser failed. Showing raw fallback preview.
         </div>
-        <pre className="h-[420px] overflow-auto rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[#07121f] p-3 font-mono text-xs text-[#b9f5db]">
+        <pre
+          className={`${compact ? "h-[300px]" : "h-[420px]"} overflow-auto rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[#07121f] p-3 font-mono text-xs text-[#b9f5db]`}
+        >
           {diffText}
         </pre>
       </section>
@@ -188,8 +191,10 @@ export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled }: Diff
         </Button>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="max-h-[420px] overflow-auto rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)]">
+      <div className={`grid gap-3 ${compact ? "xl:grid-cols-[180px_minmax(0,1fr)]" : "xl:grid-cols-[240px_minmax(0,1fr)]"}`}>
+        <aside
+          className={`${compact ? "max-h-[300px]" : "max-h-[420px]"} overflow-auto rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)]`}
+        >
           {parsedFiles.map((file) => {
             const summary = diffChunks.find((entry) => entry.path === file.path);
             const active = file.path === selectedPath;
@@ -212,7 +217,9 @@ export function DiffPanel({ diffText, loading, jumpAnchor, onJumpHandled }: Diff
           })}
         </aside>
 
-        <div className="h-[420px] overflow-auto rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-2">
+        <div
+          className={`${compact ? "h-[300px]" : "h-[420px]"} overflow-auto rounded-[var(--radius-input)] border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-2`}
+        >
           {selectedFile && displayedHunks.length ? (
             <Diff
               viewType={viewType}
